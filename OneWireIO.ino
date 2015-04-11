@@ -1,15 +1,21 @@
-#include "OWSlave.h"
+#include "Arduino.h"
+#include "SerialChannel.h"
 
 #define LEDPin    13
 #define OWPin     2
 #define InterruptNumber 0 // Must correspond to the OWPin to correctly detect state changes. On Arduino Uno, interrupt 0 is for digital pin 2
 
-unsigned char rom[8] = {0xE2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00};
+const int SkipSamples = 8; // how many samples we want to skip between two samples we keep (can be used to lower the sampling frequency)
+const int BufferSize = 128;
+byte buffer1[BufferSize];
+byte buffer2[BufferSize];
+byte* backBuffer = buffer1;
+byte backBufferPos = 0;
+byte samplesSkipped = SkipSamples;
+unsigned long backBufferStartTime = micros();
 
-volatile long prevInt    = 0;      // Previous Interrupt micros
-volatile boolean owReset = false;
-
-OWSlave oneWire(OWPin); 
+SerialChannel oscilloscope;
+SerialChannel debug;
 
 void setup()
 {
@@ -20,43 +26,69 @@ void setup()
 
     attachInterrupt(InterruptNumber,onewireInterrupt,CHANGE);
     
-    oneWire.setRom(rom);
+    cli();//disable interrupts
+  
+    //set up continuous sampling of analog pin 0
+    //clear ADCSRA and ADCSRB registers
+    ADCSRA = 0;
+    ADCSRB = 0;
+    
+    ADMUX |= (1 << REFS0); //set reference voltage
+    ADMUX |= (1 << ADLAR); //left align the ADC value- so we can read highest 8 bits from ADCH register only
+    
+    ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0); //set ADC clock with 128 prescaler- 16mHz/128=125kHz ; 13 cycles for a conversion which means 9600 samples per second
+    ADCSRA |= (1 << ADATE); //enabble auto trigger
+    ADCSRA |= (1 << ADIE); //enable interrupts when measurement complete
+    ADCSRA |= (1 << ADEN); //enable ADC
+    ADCSRA |= (1 << ADSC); //start ADC measurements
+    
+    sei();//enable interrupts
+    
+    Serial.begin(9600);
+    oscilloscope.init("oscilloscope");
+    debug.init("debug");
 }
 
 void loop()
 {
-    if (owReset) owHandler();
+    cli();//disable interrupts
+    byte* currentBuffer = backBuffer;
+    unsigned long currentBufferStartTime = backBufferStartTime;
+    byte currentBufferSize = backBufferPos;
+    backBuffer = (backBuffer == buffer1 ? buffer2 : buffer1);
+    backBufferPos = 0;
+    backBufferStartTime = micros();
+    sei();//enable interrupts
+    
+    unsigned long now = micros();
+    debug.write((byte*)&now, 4);
+    debug.write("Starting buffer transmission");
+    
+    oscilloscope.write((byte*)&currentBufferStartTime, 4);
+    oscilloscope.write(currentBuffer, currentBufferSize);
+    
+    now = micros();
+    debug.write((byte*)&now, 4);
+    debug.write("Buffer transmitted");
 }
 
-void owHandler(void)
-{
-    detachInterrupt(InterruptNumber);
-    owReset=false;
-    
-    if (oneWire.presence()) {
-        if (oneWire.recvAndProcessCmd()) {
-            uint8_t cmd = oneWire.recv();
-            if (cmd == 0x44) {
-                digitalWrite(LEDPin, HIGH);
-            }
-            if (cmd == 0xBE) {
-                for( int i = 0; i < 9; i++) {
-                    oneWire.send((byte)0);
-                }
-            }
-        }
+ISR(ADC_vect) {//when new ADC value ready
+    byte sample = ADCH; //store 8 bit value from analog pin 0
+        
+    if(samplesSkipped++ < SkipSamples)
+        return;
+    samplesSkipped = 0;
+
+    backBuffer[backBufferPos++] = sample;
+    if(backBufferPos >= BufferSize)
+    {
+        // overflow of back buffer, we loose the current sample
+        backBufferPos = BufferSize - 1;
     }
-    attachInterrupt(InterruptNumber,onewireInterrupt,CHANGE);
 }
 
 void onewireInterrupt(void)
 {
-    volatile long lastMicros = micros() - prevInt;
-    prevInt = micros();
-    if (lastMicros >= 410 && lastMicros <= 550)
-    {
-        //  OneWire Reset Detected
-        owReset=true;
-    }
+    //digitalWrite(LEDPin, digitalRead(OWPin));
 }
 
