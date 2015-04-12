@@ -14,8 +14,8 @@ byte backBufferPos = 0;
 byte samplesSkipped = SkipSamples;
 unsigned long backBufferStartTime = micros();
 
-SerialChannel oscilloscope;
-SerialChannel debug;
+SerialChannel oscilloscope("oscilloscope");
+SerialChannel debug("debug");
 
 void setup()
 {
@@ -45,8 +45,6 @@ void setup()
     sei();//enable interrupts
     
     Serial.begin(9600);
-    oscilloscope.init("oscilloscope");
-    debug.init("debug");
 }
 
 void loop()
@@ -60,15 +58,10 @@ void loop()
     backBufferStartTime = micros();
     sei();//enable interrupts
     
-    unsigned long now = micros();
-    debug.write((byte*)&now, 4);
     debug.write("Starting buffer transmission");
     
-    oscilloscope.write((byte*)&currentBufferStartTime, 4);
-    oscilloscope.write(currentBuffer, currentBufferSize);
+    oscilloscope.write(currentBuffer, currentBufferSize, currentBufferStartTime);
     
-    now = micros();
-    debug.write((byte*)&now, 4);
     debug.write("Buffer transmitted");
 }
 

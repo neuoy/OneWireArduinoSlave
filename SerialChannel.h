@@ -4,17 +4,24 @@
 class SerialChannel
 {
 private:
-    static short nextId;
-    short id;
+    static SerialChannel* first;
+    SerialChannel* next;
+    
+    static byte nextId;
+    byte id;
+    const char* name;
 
 public:
-    SerialChannel();
+    SerialChannel(const char* name_);
     
-    void init(const char* name);
+    void write(byte* data, short byteCount, unsigned long time = (unsigned long)-1);
     
-    void write(byte* data, short byteCount);
+    void write(const char* text, unsigned long time = (unsigned long)-1);
     
-    void write(const char* text);
+private:
+    void handleConnection();
+    void writeShort(short num);
+    void writeULong(unsigned long num);
 };
 
 #endif

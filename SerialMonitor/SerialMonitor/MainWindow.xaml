@@ -1,8 +1,11 @@
 ﻿<Window x:Class="SerialMonitor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MainWindow" Height="350" Width="525">
+        Title="Serial Monitor" Height="396" Width="629">
     <Grid>
-        
+        <TextBlock TextWrapping="Wrap" VerticalAlignment="Bottom" Height="150" Text="{Binding ConsoleText}" Style="{DynamicResource Console}" Grid.ColumnSpan="2"/>
+        <ScrollViewer HorizontalScrollBarVisibility="Visible" Margin="0,0,0,155" Grid.ColumnSpan="2">
+            <Canvas Style="{DynamicResource Oscilloscope}"/>
+        </ScrollViewer>
     </Grid>
 </Window>
