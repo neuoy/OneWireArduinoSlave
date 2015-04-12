@@ -28,7 +28,7 @@ namespace SerialMonitor
 
             Serial = new SerialPort();
             Serial.PortName = "COM4";
-            Serial.BaudRate = 9600;
+            Serial.BaudRate = 200000;
 
             Serial.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(OnDataReceived);
 
@@ -85,14 +85,7 @@ namespace SerialMonitor
                     MainWindowContext.Get.WriteLine(text);
                     break;
                 case "oscilloscope":
-                    /*float visibleDuration = 10.0f;
-                    float sampleDelay = 0.000936f;
-                    float startOffset = (float)message.SendTime / 1000000;
-                    for (int i = 1; i < message.Data.Length; ++i )
-                    {
-                        var line = new Line();
-                        canvas.Children.Add(line);
-                    }*/
+                    MainWindowContext.Get.AddSequence(message.SendTime, message.Data);
                     break;
             }
         }

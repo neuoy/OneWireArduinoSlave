@@ -10,7 +10,7 @@ const int BufferSize = 128;
 byte buffer1[BufferSize];
 byte buffer2[BufferSize];
 byte* backBuffer = buffer1;
-byte backBufferPos = 0;
+volatile byte backBufferPos = 0;
 byte samplesSkipped = SkipSamples;
 unsigned long backBufferStartTime = micros();
 
@@ -44,11 +44,12 @@ void setup()
     
     sei();//enable interrupts
     
-    Serial.begin(9600);
+    Serial.begin(200000);
 }
 
 void loop()
 {
+    while(backBufferPos < BufferSize / 2) ;
     cli();//disable interrupts
     byte* currentBuffer = backBuffer;
     unsigned long currentBufferStartTime = backBufferStartTime;
@@ -58,11 +59,7 @@ void loop()
     backBufferStartTime = micros();
     sei();//enable interrupts
     
-    debug.write("Starting buffer transmission");
-    
     oscilloscope.write(currentBuffer, currentBufferSize, currentBufferStartTime);
-    
-    debug.write("Buffer transmitted");
 }
 
 ISR(ADC_vect) {//when new ADC value ready

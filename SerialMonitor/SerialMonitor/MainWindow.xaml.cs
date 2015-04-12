@@ -23,7 +23,7 @@ namespace SerialMonitor
         public MainWindow()
         {
             InitializeComponent();
-            var context = new MainWindowContext();
+            var context = new MainWindowContext(this);
             context.WriteLine("Connecting...");
             this.DataContext = context;
         }
