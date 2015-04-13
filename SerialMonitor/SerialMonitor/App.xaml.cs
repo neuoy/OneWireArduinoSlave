@@ -28,7 +28,7 @@ namespace SerialMonitor
 
             Serial = new SerialPort();
             Serial.PortName = "COM4";
-            Serial.BaudRate = 200000;
+            Serial.BaudRate = 400000;
 
             Serial.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(OnDataReceived);
 

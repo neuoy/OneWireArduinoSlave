@@ -54,6 +54,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="MainWindowContext.cs" />
+    <Compile Include="MathEx.cs" />
     <Compile Include="SerialMessage.cs" />
     <Compile Include="SerialPortExtensions.cs" />
     <Page Include="MainWindow.xaml">

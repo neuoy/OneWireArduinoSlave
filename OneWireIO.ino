@@ -5,12 +5,14 @@
 #define OWPin     2
 #define InterruptNumber 0 // Must correspond to the OWPin to correctly detect state changes. On Arduino Uno, interrupt 0 is for digital pin 2
 
-const int SkipSamples = 8; // how many samples we want to skip between two samples we keep (can be used to lower the sampling frequency)
-const int BufferSize = 128;
+// how many samples we want to skip between two samples we keep (can be used to lower the sampling frequency)
+#define SkipSamples 0
+
+const int BufferSize = 512;
 byte buffer1[BufferSize];
 byte buffer2[BufferSize];
 byte* backBuffer = buffer1;
-volatile byte backBufferPos = 0;
+volatile short backBufferPos = 0;
 byte samplesSkipped = SkipSamples;
 unsigned long backBufferStartTime = micros();
 
@@ -24,7 +26,7 @@ void setup()
 
     digitalWrite(LEDPin, LOW);
 
-    attachInterrupt(InterruptNumber,onewireInterrupt,CHANGE);
+    //attachInterrupt(InterruptNumber,onewireInterrupt,CHANGE);
     
     cli();//disable interrupts
   
@@ -36,7 +38,7 @@ void setup()
     ADMUX |= (1 << REFS0); //set reference voltage
     ADMUX |= (1 << ADLAR); //left align the ADC value- so we can read highest 8 bits from ADCH register only
     
-    ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0); //set ADC clock with 128 prescaler- 16mHz/128=125kHz ; 13 cycles for a conversion which means 9600 samples per second
+    ADCSRA |= (1 << ADPS2) | (0 << ADPS1) | (1 << ADPS0); //set ADC clock with 32 prescaler- 16mHz/32=500KHz ; 13 cycles for a conversion which means 38000 samples per second
     ADCSRA |= (1 << ADATE); //enabble auto trigger
     ADCSRA |= (1 << ADIE); //enable interrupts when measurement complete
     ADCSRA |= (1 << ADEN); //enable ADC
@@ -44,7 +46,7 @@ void setup()
     
     sei();//enable interrupts
     
-    Serial.begin(200000);
+    Serial.begin(400000);
 }
 
 void loop()
@@ -52,27 +54,32 @@ void loop()
     while(backBufferPos < BufferSize / 2) ;
     cli();//disable interrupts
     byte* currentBuffer = backBuffer;
-    unsigned long currentBufferStartTime = backBufferStartTime;
-    byte currentBufferSize = backBufferPos;
+    short currentBufferSize = backBufferPos;
     backBuffer = (backBuffer == buffer1 ? buffer2 : buffer1);
     backBufferPos = 0;
-    backBufferStartTime = micros();
     sei();//enable interrupts
+    unsigned long currentBufferStartTime = backBufferStartTime;
+    backBufferStartTime = micros();
+    digitalWrite(LEDPin, LOW);
     
+    //Serial.write(currentBuffer, currentBufferSize);
     oscilloscope.write(currentBuffer, currentBufferSize, currentBufferStartTime);
 }
 
 ISR(ADC_vect) {//when new ADC value ready
     byte sample = ADCH; //store 8 bit value from analog pin 0
-        
+    
+    #if SkipSamples > 0
     if(samplesSkipped++ < SkipSamples)
         return;
     samplesSkipped = 0;
+    #endif
 
     backBuffer[backBufferPos++] = sample;
     if(backBufferPos >= BufferSize)
     {
         // overflow of back buffer, we loose the current sample
+        digitalWrite(LEDPin, HIGH);
         backBufferPos = BufferSize - 1;
     }
 }
