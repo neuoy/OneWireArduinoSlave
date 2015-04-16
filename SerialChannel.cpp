@@ -23,16 +23,26 @@ SerialChannel::SerialChannel(const char* name_)
 
 void SerialChannel::write(byte* data, short byteCount, unsigned long time)
 {
-    if (time == (unsigned long)-1)
-        time = micros();
-        
-    handleConnection();
+	beginWrite(byteCount, time);
+	continueWrite(data, byteCount);
+}
 
-    Serial.write("START");
-    Serial.write(id);
-    writeULong(time);
-    writeShort(byteCount);
-    Serial.write(data, byteCount);
+void SerialChannel::beginWrite(short byteCount, unsigned long time)
+{
+	if (time == (unsigned long)-1)
+		time = micros();
+
+	handleConnection();
+
+	Serial.write("START");
+	Serial.write(id);
+	writeULong(time);
+	writeShort(byteCount);
+}
+
+void SerialChannel::continueWrite(byte* data, short byteCount)
+{
+	Serial.write(data, byteCount);
 }
 
 void SerialChannel::write(const char* text, unsigned long time)

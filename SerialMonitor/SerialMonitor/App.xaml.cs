@@ -85,7 +85,8 @@ namespace SerialMonitor
                     MainWindowContext.Get.WriteLine(text);
                     break;
                 case "oscilloscope":
-                    MainWindowContext.Get.AddSequence(message.SendTime, message.Data);
+                    byte frequency = message.Data[0];
+                    MainWindowContext.Get.AddSequence(message.SendTime, frequency, message.Data.Skip(1).ToArray());
                     break;
             }
         }

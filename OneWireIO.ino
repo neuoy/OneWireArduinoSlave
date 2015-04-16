@@ -7,6 +7,7 @@
 
 // how many samples we want to skip between two samples we keep (can be used to lower the sampling frequency)
 #define SkipSamples 0
+byte regularEncodedFrequency;
 
 const int BufferSize = 512;
 byte buffer1[BufferSize];
@@ -38,11 +39,19 @@ void setup()
     ADMUX |= (1 << REFS0); //set reference voltage
     ADMUX |= (1 << ADLAR); //left align the ADC value- so we can read highest 8 bits from ADCH register only
     
-    ADCSRA |= (1 << ADPS2) | (0 << ADPS1) | (1 << ADPS0); //set ADC clock with 32 prescaler- 16mHz/32=500KHz ; 13 cycles for a conversion which means 38000 samples per second
+	int ADPS = (1 << ADPS2) | (0 << ADPS1) | (1 << ADPS0);
+    ADCSRA |= ADPS; //set ADC clock with 32 prescaler- 16mHz/32=500KHz ; 13 cycles for a conversion which means 38000 samples per second
     ADCSRA |= (1 << ADATE); //enabble auto trigger
     ADCSRA |= (1 << ADIE); //enable interrupts when measurement complete
     ADCSRA |= (1 << ADEN); //enable ADC
     ADCSRA |= (1 << ADSC); //start ADC measurements
+
+	regularEncodedFrequency = (byte)ADPS;
+	byte skipSamples = 0;
+	#if SkipSamples > 0
+	skipSamples = SkipSamples;
+	#endif
+	regularEncodedFrequency |= skipSamples << 3;
     
     sei();//enable interrupts
     
@@ -63,7 +72,9 @@ void loop()
     digitalWrite(LEDPin, LOW);
     
     //Serial.write(currentBuffer, currentBufferSize);
-    oscilloscope.write(currentBuffer, currentBufferSize, currentBufferStartTime);
+    oscilloscope.beginWrite(currentBufferSize + 1, currentBufferStartTime);
+    oscilloscope.continueWrite(&regularEncodedFrequency, 1);
+    oscilloscope.continueWrite(currentBuffer, currentBufferSize);
 }
 
 ISR(ADC_vect) {//when new ADC value ready

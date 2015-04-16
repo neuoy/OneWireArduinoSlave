@@ -35,13 +35,13 @@ namespace SerialMonitor
             OnPropertyChanged("ConsoleText");
         }
 
-        public double SampleDelay { get { return 0.000026; } }
         public int MaxSequenceSize { get { return 2048; } }
 
         private class Sequence
         {
-            public ulong StartTime { get; set; }
+            public ulong StartTime { get; set; } // time in microseconds of the first sample
             public byte[] Data { get; set; }
+            public double Frequency { get; set; } // sampling rate (in samples per second)
 
             public class Comparer : IComparer<Sequence>
             {
@@ -67,7 +67,8 @@ namespace SerialMonitor
                 foreach (var sequence in Sequences)
                 {
                     double seqStartTime = (double)sequence.StartTime/1000000.0;
-                    if (seqStartTime + (double)sequence.Data.Length * SampleDelay > ViewportStartTime && seqStartTime < ViewportStartTime + ViewportTimeWidth)
+                    double sampleDelay = 1.0 / sequence.Frequency;
+                    if (seqStartTime + (double)sequence.Data.Length * sampleDelay > ViewportStartTime && seqStartTime < ViewportStartTime + ViewportTimeWidth)
                     {
                         foreach (var line in ConvertToLines(sequence))
                             yield return line;
@@ -82,6 +83,7 @@ namespace SerialMonitor
             double scale = viewportWidth / ViewportTimeWidth; // in pixels per second
 
             ulong displayStartTime = (ulong)(viewportStartTime_ * 1000000.0);
+            double sampleDelay = 1.0 / sequence.Frequency;
 
             double pos = ((double)sequence.StartTime - (double)displayStartTime) / 1000000.0 * scale;
             if (pos > 1000)
@@ -94,7 +96,7 @@ namespace SerialMonitor
             for (int idx = 1; idx < sequence.Data.Length; ++idx)
             {
                 byte value = sequence.Data[idx];
-                pos += SampleDelay * scale;
+                pos += sampleDelay * scale;
                 if (value > maxValue) maxValue = value;
                 if (value < minValue) minValue = value;
 
@@ -110,7 +112,7 @@ namespace SerialMonitor
                     prevPos = pos;
                     line.X2 = pos;
 
-                    double time = (double)sequence.StartTime / 1000000.0 + (double)idx * SampleDelay;
+                    double time = (double)sequence.StartTime / 1000000.0 + (double)idx * sampleDelay;
                     double lastHeight = ValueToHeight(time, value);
 
                     if (idx == prevIdx + 1)
@@ -142,10 +144,20 @@ namespace SerialMonitor
             }
         }
 
-        public void AddSequence(ulong startTime, byte[] data)
+        public void AddSequence(ulong startTime, byte frequency, byte[] data)
         {
             // TODO: merge sequences if total size is lower than MaxSequenceSize
-            var sequence = new Sequence { StartTime = startTime, Data = data };
+            double cpuClock = 16000000.0;
+            int adsp0 = (frequency & (1 << 0)) != 0 ? 1 : 0;
+            int adsp1 = (frequency & (1 << 1)) != 0 ? 1 : 0;
+            int adsp2 = (frequency & (1 << 2)) != 0 ? 1 : 0;
+            int skipBit0 = (frequency & (1 << 3)) != 0 ? 1 : 0;
+            int skipBit1 = (frequency & (1 << 4)) != 0 ? 1 : 0;
+            int skipBit2 = (frequency & (1 << 5)) != 0 ? 1 : 0;
+            int adcDivider =  1 << Math.Max(1, adsp0 + adsp1*2 + adsp2*4);
+            int skip = skipBit0 + skipBit1 * 2 + skipBit2 * 4;
+            double freq = cpuClock / (double)adcDivider / 13.0 / (double)(1 + skip);
+            var sequence = new Sequence { StartTime = startTime, Frequency = freq, Data = data };
             Sequences.Add(sequence);
             OnPropertyChanged("Oscilloscope");
             OnPropertyChanged("MinTime");

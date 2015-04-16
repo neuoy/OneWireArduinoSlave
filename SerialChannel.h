@@ -17,6 +17,9 @@ public:
     void write(byte* data, short byteCount, unsigned long time = (unsigned long)-1);
     
     void write(const char* text, unsigned long time = (unsigned long)-1);
+
+	void beginWrite(short byteCount, unsigned long time = (unsigned long)-1);
+	void continueWrite(byte* data, short byteCount);
     
 private:
     void handleConnection();
