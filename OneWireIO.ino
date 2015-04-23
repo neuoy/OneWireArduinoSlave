@@ -8,14 +8,20 @@
 // how many samples we want to skip between two samples we keep (can be used to lower the sampling frequency)
 #define SkipSamples 0
 byte regularEncodedFrequency;
+byte burstEncodedFrequency;
 
-const int BufferSize = 512;
+int regularADCSRA;
+int burstADCSRA;
+
+const int BufferSize = 128;
+const int BurstBufferSize = 1024;
 byte buffer1[BufferSize];
 byte buffer2[BufferSize];
-byte* backBuffer = buffer1;
+byte burstBuffer[BurstBufferSize];
+volatile byte* backBuffer = buffer1;
 volatile short backBufferPos = 0;
 byte samplesSkipped = SkipSamples;
-unsigned long backBufferStartTime = micros();
+volatile unsigned long backBufferStartTime = micros();
 
 SerialChannel oscilloscope("oscilloscope");
 SerialChannel debug("debug");
@@ -39,19 +45,34 @@ void setup()
     ADMUX |= (1 << REFS0); //set reference voltage
     ADMUX |= (1 << ADLAR); //left align the ADC value- so we can read highest 8 bits from ADCH register only
     
-	int ADPS = (1 << ADPS2) | (0 << ADPS1) | (1 << ADPS0);
-    ADCSRA |= ADPS; //set ADC clock with 32 prescaler- 16mHz/32=500KHz ; 13 cycles for a conversion which means 38000 samples per second
-    ADCSRA |= (1 << ADATE); //enabble auto trigger
-    ADCSRA |= (1 << ADIE); //enable interrupts when measurement complete
-    ADCSRA |= (1 << ADEN); //enable ADC
-    ADCSRA |= (1 << ADSC); //start ADC measurements
+    byte skipSamples = 0;
+    #if SkipSamples > 0
+    skipSamples = SkipSamples;
+    #endif
+    
+    int ADPS = (1 << ADPS2) | (0 << ADPS1) | (1 << ADPS0);
+    regularADCSRA = 0;
+    regularADCSRA |= ADPS; //set ADC clock with 32 prescaler- 16mHz/32=500KHz ; 13 cycles for a conversion which means 38000 samples per second
+    regularADCSRA |= (1 << ADATE); //enabble auto trigger
+    regularADCSRA |= (1 << ADIE); //enable interrupts when measurement complete
+    regularADCSRA |= (1 << ADEN); //enable ADC
+    regularADCSRA |= (1 << ADSC); //start ADC measurements
 
-	regularEncodedFrequency = (byte)ADPS;
-	byte skipSamples = 0;
-	#if SkipSamples > 0
-	skipSamples = SkipSamples;
-	#endif
-	regularEncodedFrequency |= skipSamples << 3;
+    regularEncodedFrequency = (byte)ADPS;
+    regularEncodedFrequency |= skipSamples << 3;
+    
+    ADCSRA = regularADCSRA;
+    
+    ADPS = (0 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+    burstADCSRA = 0;
+    burstADCSRA |= ADPS; //set ADC clock with 32 prescaler- 16mHz/32=500KHz ; 13 cycles for a conversion which means 38000 samples per second
+    burstADCSRA |= (1 << ADATE); //enabble auto trigger
+    burstADCSRA |= (1 << ADIE); //enable interrupts when measurement complete
+    burstADCSRA |= (1 << ADEN); //enable ADC
+    burstADCSRA |= (1 << ADSC); //start ADC measurements
+
+    burstEncodedFrequency = (byte)ADPS;
+    burstEncodedFrequency |= skipSamples << 3;
     
     sei();//enable interrupts
     
@@ -60,20 +81,26 @@ void setup()
 
 void loop()
 {
-    while(backBufferPos < BufferSize / 2) ;
+    while(backBufferPos < BufferSize / 2 || (backBuffer == burstBuffer && backBufferPos < BurstBufferSize - 1)) ;
     cli();//disable interrupts
-    byte* currentBuffer = backBuffer;
+    byte* currentBuffer = (byte*)backBuffer;
     short currentBufferSize = backBufferPos;
     backBuffer = (backBuffer == buffer1 ? buffer2 : buffer1);
     backBufferPos = 0;
+    if(currentBuffer == burstBuffer)
+    {
+        ADCSRA = regularADCSRA;
+    }
     sei();//enable interrupts
     unsigned long currentBufferStartTime = backBufferStartTime;
     backBufferStartTime = micros();
     digitalWrite(LEDPin, LOW);
     
+    byte encodedFrequency = currentBuffer == burstBuffer ? burstEncodedFrequency : regularEncodedFrequency;
+    
     //Serial.write(currentBuffer, currentBufferSize);
     oscilloscope.beginWrite(currentBufferSize + 1, currentBufferStartTime);
-    oscilloscope.continueWrite(&regularEncodedFrequency, 1);
+    oscilloscope.continueWrite(&encodedFrequency, 1);
     oscilloscope.continueWrite(currentBuffer, currentBufferSize);
 }
 
@@ -87,12 +114,31 @@ ISR(ADC_vect) {//when new ADC value ready
     #endif
 
     backBuffer[backBufferPos++] = sample;
-    if(backBufferPos >= BufferSize)
+    if(backBuffer == burstBuffer)
     {
-        // overflow of back buffer, we loose the current sample
-        digitalWrite(LEDPin, HIGH);
-        backBufferPos = BufferSize - 1;
+        if(backBufferPos >= BurstBufferSize)
+        {
+            backBufferPos = BurstBufferSize - 1;
+        }
     }
+    else
+    {
+        if(backBufferPos >= BufferSize)
+        {
+            // overflow of back buffer, we loose the current sample
+            digitalWrite(LEDPin, HIGH);
+            backBufferPos = BufferSize - 1;
+        }
+    }
+    
+    // switch to burst mode if the trigger condition is met
+    /*if(backBuffer != burstBuffer && sample < 127)
+    {
+        backBuffer = burstBuffer;
+        ADCSRA = burstADCSRA;
+        backBufferPos = 0;
+        backBufferStartTime = micros();
+    }*/
 }
 
 void onewireInterrupt(void)
