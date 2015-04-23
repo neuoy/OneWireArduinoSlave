@@ -80,7 +80,7 @@ namespace SerialMonitor
             switch (message.ChannelName)
             {
                 case "debug":
-                    string text = ((float)message.SendTime / 1000000).ToString("0.000") + "s " + message.StringData;
+                    string text = ((float)message.SendTime / 1000000).ToString("0.000000") + "s " + message.StringData;
                     //Debug.WriteLine(text);
                     MainWindowContext.Get.WriteLine(text);
                     break;
