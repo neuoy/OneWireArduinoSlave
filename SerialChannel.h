@@ -8,9 +8,7 @@
 
 class SerialChannel
 {
-private:
-	static const byte MaxPendingMessages = 16;
-
+public:
 	struct Message
 	{
 		unsigned long time;
@@ -19,6 +17,9 @@ private:
 		short byteCount;
 		byte id;
 	};
+
+private:
+	static const byte MaxPendingMessages = 32;
 
     static SerialChannel* first;
     SerialChannel* next;
@@ -29,8 +30,8 @@ private:
 
 	static Message buffer1[MaxPendingMessages];
 	static Message buffer2[MaxPendingMessages];
-	static Message* backBuffer;
-	static byte backBufferPos;
+	static volatile Message* backBuffer;
+	static volatile byte backBufferPos;
 	static byte frontBufferSize;
 
 public:

@@ -6,9 +6,11 @@ SerialChannel* SerialChannel::first = 0;
 
 SerialChannel::Message SerialChannel::buffer1[SerialChannel::MaxPendingMessages];
 SerialChannel::Message SerialChannel::buffer2[SerialChannel::MaxPendingMessages];
-SerialChannel::Message* SerialChannel::backBuffer;
-byte SerialChannel::backBufferPos;
+volatile SerialChannel::Message* SerialChannel::backBuffer;
+volatile byte SerialChannel::backBufferPos;
 byte SerialChannel::frontBufferSize;
+
+SerialChannel::Message dummyMessage;
 
 SerialChannel::SerialChannel(const char* name_)
     : next(0)
@@ -66,16 +68,28 @@ SerialChannel::Message& SerialChannel::append(byte* data, short byteCount, unsig
 	if (time == (unsigned long)-1)
 		time = micros();
 
-	Message& msg = backBuffer[backBufferPos++];
 	if (backBufferPos >= MaxPendingMessages)
-		backBufferPos = MaxPendingMessages - 1;
-	msg.id = id;
-	msg.data = data;
-	msg.byteCount = byteCount;
-	msg.time = time;
-	msg.longArg0 = 0;
+	{
+		Message& msg = ((Message*)backBuffer)[MaxPendingMessages-1];
+		msg.id = id;
+		msg.data = (byte*)"OVERFLOW";
+		msg.byteCount = 8;
+		msg.time = time;
+		msg.longArg0 = 0;
 
-	return msg;
+		return dummyMessage;
+	}
+	else
+	{
+		Message& msg = ((Message*)backBuffer)[backBufferPos++];
+		msg.id = id;
+		msg.data = data;
+		msg.byteCount = byteCount;
+		msg.time = time;
+		msg.longArg0 = 0;
+
+		return msg;
+	}
 }
 
 void SerialChannel::append(const char* text, unsigned long time)
@@ -115,9 +129,9 @@ void SerialChannel::flush()
 		Serial.write(msg->data, msg->byteCount);
 		if (paramsSize > 0)
 			Serial.write(params, paramsSize);
-	}
 
-	Serial.flush();
+		Serial.flush();
+	}
 }
 
 void SerialChannel::writeShort(short num)

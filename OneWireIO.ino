@@ -12,11 +12,23 @@
 #define PresenceWaitDuration 30
 #define PresenceDuration 300
 
+#define BitZeroMinDuration 20
+#define BitZeroMaxDuration 75
+
 SerialChannel debug("debug");
 
 Pin owPin(OWPin);
 Pin owOutTestPin(3);
 Pin led(LEDPin);
+
+enum OwStatus
+{
+	OS_WaitReset,
+	OS_Presence,
+	OS_AfterPresence,
+	OS_WaitCommand,
+};
+OwStatus status;
 
 void owPullLow()
 {
@@ -40,6 +52,10 @@ void owWrite(bool value)
 }
 
 unsigned long resetStart = (unsigned long)-1;
+unsigned long lastReset = (unsigned long)-1;
+unsigned long bitStart = (unsigned long)-1;
+byte receivingByte = 0;
+byte receivingBitPos = 0;
 
 void setup()
 {
@@ -63,7 +79,7 @@ void setup()
 	TIMSK1 |= (1 << OCIE1A); // enable timer compare interrupt
 	sei(); // enable interrupts
     
-    Serial.begin(400000);
+    Serial.begin(9600);
 }
 
 //int count = 0;
@@ -92,6 +108,17 @@ void setTimerEvent(short microSecondsDelay, void(*event)())
 	TCCR1B = (1 << WGM12) | (1 << CS11) | (1 << CS10); // turn on CTC mode with 64 prescaler
 }
 
+void owError(const char* message)
+{
+	debug.append(message);
+	led.writeHigh();
+}
+
+void owResetError()
+{
+	led.writeLow();
+}
+
 void onewireInterrupt(void)
 {
 	bool state = owPin.read();
@@ -102,32 +129,107 @@ void onewireInterrupt(void)
 	if (!state)
 		resetStart = now;
 
+	// handle reset
 	if (state)
 	{
 		unsigned long resetDuration = resetStart == (unsigned long)-1 ? (unsigned long)-1 : now - resetStart;
 		resetStart = (unsigned long)-1;
+		lastReset = now;
 
 		if (resetDuration >= ResetMinDuration && resetDuration <= ResetMaxDuration)
 		{
 			//debug.SC_APPEND_STR_TIME("reset", now);
+			owResetError();
+			status = OS_Presence;
 			setTimerEvent(PresenceWaitDuration - (micros() - now), &beginPresence);
 			return;
+		}
+	}
+
+	if (status == OS_AfterPresence)
+	{
+		status = OS_WaitCommand;
+		receivingByte = 0;
+		receivingBitPos = 0;
+
+		if (state)
+		{
+			// this is the rising edge of end-of-presence ; don't try to interpret it as a bit
+			return;
+		}
+	}
+
+	// read bytes
+	if (status == OS_WaitCommand)
+	{
+		if (!state)
+		{
+			// master just pulled low, this is a bit start
+			//debug.SC_APPEND_STR_TIME("bit start", now);
+			bitStart = now;
+		}
+		else
+		{
+			if (bitStart == (unsigned long)-1)
+			{
+				//owError("Invalid read sequence");
+				//return;
+
+				// we missed the falling edge, we emulate one here (this can happen if handling of rising edge interrupt takes too long)
+				bitStart = now;
+			}
+
+			// master released the line, we interpret it as a bit 1 or 0 depending on timing
+			unsigned long bitLength = now - bitStart;
+			bitStart = (unsigned long)-1;
+
+			if (bitLength < BitZeroMinDuration)
+			{
+				// received bit = 1
+				//debug.SC_APPEND_STR_TIME("received bit 1", now);
+				receivingByte |= (1 << receivingBitPos);
+				++receivingBitPos;
+			}
+			else if (bitLength < BitZeroMaxDuration)
+			{
+				// received bit = 0
+				//debug.SC_APPEND_STR_TIME("received bit 0", now);
+				++receivingBitPos;
+			}
+			else
+			{
+				// this is not a valid bit
+				owError("Invalid read timing");
+				return;
+			}
+
+			if (receivingBitPos == 8)
+			{
+				debug.SC_APPEND_STR_INT("received byte", (long)receivingByte);
+				receivingBitPos = 0;
+				receivingByte = 0;
+			}
 		}
 	}
 }
 
 void beginPresence()
 {
-	//debug.SC_APPEND_STR("beginPresence");
+	unsigned long now = micros();
 	owPullLow();
 	owOutTestPin.writeLow();
 	setTimerEvent(PresenceDuration, &endPresence);
+	debug.SC_APPEND_STR_TIME("reset", lastReset);
+	debug.SC_APPEND_STR_TIME("beginPresence", now);
 }
 
 void endPresence()
 {
-	//debug.SC_APPEND_STR("endPresence");
+	unsigned long now = micros();
 	owRelease();
+	debug.SC_APPEND_STR_TIME("endPresence", now);
+
+	status = OS_AfterPresence;
 }
 
 ISR(TIMER1_COMPA_vect) // timer1 interrupt
