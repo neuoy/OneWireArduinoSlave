@@ -44,12 +44,22 @@ void owPullLow()
 {
 	owPin.outputMode();
 	owPin.writeLow();
-	owOutTestPin.writeLow();
+	//owOutTestPin.writeLow();
 }
 
 void owRelease()
 {
 	owPin.inputMode();
+	//owOutTestPin.writeHigh();
+}
+
+void onEnterInterrupt()
+{
+	owOutTestPin.writeLow();
+}
+
+void onLeaveInterrupt()
+{
 	owOutTestPin.writeHigh();
 }
 
@@ -166,9 +176,9 @@ void owHandleReset()
 
 void onewireInterrupt()
 {
-	//owOutTestPin.writeLow();
+	onEnterInterrupt();
 	onewireInterruptImpl();
-	//owOutTestPin.writeHigh();
+	onLeaveInterrupt();
 }
 
 //bool debugState = false;
@@ -230,6 +240,8 @@ bool ignoreNextFallingEdge = false;
 
 void owSearchSendBit()
 {
+	onEnterInterrupt();
+
 	// wait for a falling edge (active wait is more reliable than interrupts to send the bit fast enough)
 	while (!owPin.read());
 	while (owPin.read());
@@ -276,13 +288,18 @@ void owSearchSendBit()
 
 	delayMicroseconds(SendBitDuration - (micros() - sendBitStart));
 	owRelease();
+
+	onLeaveInterrupt();
 }
 
 void onewireInterruptSearchROM()
 {
+	onEnterInterrupt();
+
 	if (ignoreNextFallingEdge)
 	{
 		ignoreNextFallingEdge = false;
+		onLeaveInterrupt();
 		return;
 	}
 
@@ -295,6 +312,7 @@ void onewireInterruptSearchROM()
 			debug.SC_APPEND_STR("Master didn't send our bit, leaving ROM search");
 			status = OS_WaitReset;
 			attachInterrupt(InterruptNumber, onewireInterrupt, FALLING);
+			onLeaveInterrupt();
 			return;
 		}
 
@@ -304,7 +322,7 @@ void onewireInterruptSearchROM()
 		{
 			++searchROMCurrentByte;
 			searchROMCurrentBit = 0;
-			debug.SC_APPEND_STR("sent another ROM byte");
+			//debug.SC_APPEND_STR("sent another ROM byte");
 		}
 
 		if (searchROMCurrentByte == 8)
@@ -313,6 +331,7 @@ void onewireInterruptSearchROM()
 			status = OS_WaitReset;
 			debug.SC_APPEND_STR("ROM sent entirely");
 			attachInterrupt(InterruptNumber, onewireInterrupt, FALLING);
+			onLeaveInterrupt();
 			return;
 		}
 
@@ -322,6 +341,7 @@ void onewireInterruptSearchROM()
 
 		setTimerEvent(10, owSearchSendBit);
 		detachInterrupt(InterruptNumber);
+		onLeaveInterrupt();
 		return;
 	}
 	else
@@ -346,6 +366,8 @@ void onewireInterruptSearchROM()
 	byte currentByte = owROM[searchROMCurrentByte];
 	searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
 	searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
+
+	onLeaveInterrupt();
 }
 
 bool readBit()
