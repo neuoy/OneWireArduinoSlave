@@ -58,6 +58,8 @@ unsigned long lastReset = (unsigned long)-1;
 unsigned long bitStart = (unsigned long)-1;
 byte receivingByte = 0;
 byte receivingBitPos = 0;
+bool searchRomNextBit = false;
+bool searchRomNextBitToSend = false;
 
 void setup()
 {
@@ -211,6 +213,9 @@ void onewireInterruptImpl(void)
 				searchROMSendingInverse = false;
 				searchROMCurrentByte = 0;
 				searchROMCurrentBit = 0;
+				byte currentByte = owROM[searchROMCurrentByte];
+				searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
+				searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
 				attachInterrupt(InterruptNumber, onewireInterruptSearchROM, FALLING);
 				return;
 			}
@@ -232,10 +237,7 @@ void onewireInterruptSearchROM()
 	{
 		bool bit = readBit();
 
-		byte currentByte = owROM[searchROMCurrentByte];
-		bool currentBit = bitRead(currentByte, searchROMCurrentBit);
-
-		if (bit != currentBit)
+		if (bit != searchRomNextBit)
 		{
 			debug.SC_APPEND_STR("Master didn't send our bit, leaving ROM search");
 			status = OS_WaitReset;
@@ -263,12 +265,7 @@ void onewireInterruptSearchROM()
 	}
 	else
 	{
-		byte currentByte = owROM[searchROMCurrentByte];
-		bool currentBit = bitRead(currentByte, searchROMCurrentBit);
-		//bool currentBit = 0;
-
-		bool bitToSend = searchROMSendingInverse ? !currentBit : currentBit;
-		sendBit(bitToSend);
+		sendBit(searchRomNextBitToSend);
 		/*if (bitToSend)
 			debug.SC_APPEND_STR("sent ROM search bit : 1");
 		else
@@ -284,6 +281,10 @@ void onewireInterruptSearchROM()
 			searchROMSendingInverse = true;
 		}
 	}
+
+	byte currentByte = owROM[searchROMCurrentByte];
+	searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
+	searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
 }
 
 bool readBit()
