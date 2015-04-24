@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <None Include="OneWireIO.ino" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="SerialChannel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SerialChannel.h" />
     <ClInclude Include="LowLevel.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="OneWireIO.ino" />
   </ItemGroup>
 </Project>

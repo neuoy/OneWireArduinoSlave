@@ -33,13 +33,13 @@ namespace SerialMonitor
             Serial.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(OnDataReceived);
 
             Serial.Open();
+            Serial.Write("C");
         }
 
         private void OnDataReceived(object sender, System.IO.Ports.SerialDataReceivedEventArgs e)
         {
             if (!Connected)
             {
-                Serial.Write("C");
                 Serial.ReadTo("CONNECTION");
                 Connected = true;
             }

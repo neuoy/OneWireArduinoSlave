@@ -61,7 +61,7 @@ void SerialChannel::write(const char* text, unsigned long time)
     write((byte*)text, strlen(text), time);
 }
 
-void SerialChannel::append(byte* data, short byteCount, unsigned long time)
+SerialChannel::Message& SerialChannel::append(byte* data, short byteCount, unsigned long time)
 {
 	if (time == (unsigned long)-1)
 		time = micros();
@@ -73,11 +73,20 @@ void SerialChannel::append(byte* data, short byteCount, unsigned long time)
 	msg.data = data;
 	msg.byteCount = byteCount;
 	msg.time = time;
+	msg.longArg0 = 0;
+
+	return msg;
 }
 
 void SerialChannel::append(const char* text, unsigned long time)
 {
 	append((byte*)text, strlen(text), time);
+}
+
+void SerialChannel::appendInt(const char* text, short textLength, int arg0, unsigned long time)
+{
+	Message& msg = append((byte*)text, textLength, time);
+	msg.longArg0 = arg0 | 0x40000000;
 }
 
 void SerialChannel::swap()
@@ -94,9 +103,21 @@ void SerialChannel::flush()
 	Message* frontBuffer = backBuffer == buffer1 ? buffer2 : buffer1;
 	for (Message* msg = frontBuffer; msg < frontBuffer + frontBufferSize; ++msg)
 	{
-		beginWriteInChannel(msg->id, msg->byteCount, msg->time);
+		char params[32];
+		params[0] = 0;
+
+		if ((msg->longArg0 & 0x40000000) != 0)
+			sprintf(params, ";arg0=%ld", msg->longArg0 & ~0x40000000);
+
+		short paramsSize = strlen(params);
+
+		beginWriteInChannel(msg->id, msg->byteCount + paramsSize, msg->time);
 		Serial.write(msg->data, msg->byteCount);
+		if (paramsSize > 0)
+			Serial.write(params, paramsSize);
 	}
+
+	Serial.flush();
 }
 
 void SerialChannel::writeShort(short num)
@@ -114,7 +135,7 @@ void SerialChannel::handleConnection()
     int b = Serial.read();
     if(b == (int)'C')
     {
-        Serial.write("CONNECTION");
+		Serial.write("CONNECTION");
         SerialChannel* c = first;
         while(c)
         {

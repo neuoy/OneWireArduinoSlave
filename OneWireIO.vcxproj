@@ -44,8 +44,8 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>D:\Outils\Arduino\hardware\arduino\avr\cores\arduino</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);ARDUINO=160;__AVR__</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>D:\Outils\Arduino\hardware\arduino\avr\cores\arduino;D:\Outils\Arduino\hardware\tools\avr\avr\include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);ARDUINO=160;__AVR__;UBRRH;__AVR_ATmega328__</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -66,7 +66,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <None Include="OneWireIO.ino" />
+    <None Include="OneWireIO.ino">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SerialChannel.cpp" />

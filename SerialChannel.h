@@ -2,6 +2,8 @@
 #define _SerialChannel_h_
 
 #define SC_APPEND_STR(str) append((byte*)str, sizeof(str)-1)
+#define SC_APPEND_STR_INT(str, arg0) appendInt(str, sizeof(str)-1, arg0)
+
 #define SC_APPEND_STR_TIME(str, time) append((byte*)str, sizeof(str)-1, time)
 
 class SerialChannel
@@ -11,8 +13,9 @@ private:
 
 	struct Message
 	{
-		byte* data;
 		unsigned long time;
+		long longArg0;
+		byte* data;
 		short byteCount;
 		byte id;
 	};
@@ -40,8 +43,9 @@ public:
 	void beginWrite(short byteCount, unsigned long time = (unsigned long)-1);
 	void continueWrite(byte* data, short byteCount);
 
-	void append(byte* data, short byteCount, unsigned long time = (unsigned long)-1);
+	Message& append(byte* data, short byteCount, unsigned long time = (unsigned long)-1);
 	void append(const char* text, unsigned long time = (unsigned long)-1);
+	void appendInt(const char* text, short textLength, int arg0, unsigned long time = (unsigned long)-1);
 	static void swap();
 	static void flush();
     
