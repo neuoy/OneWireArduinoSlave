@@ -12,10 +12,9 @@
 #define PresenceWaitDuration 30
 #define PresenceDuration 300
 
-#define BitZeroMinDuration 20
-#define BitZeroMaxDuration 75
+#define ReadBitSamplingTime 13 // the theorical time is about 30us, but given various overhead, this is the empirical delay I've found works best (on Arduino Uno)
 
-#define SendBitDuration 30
+#define SendBitDuration 35
 
 const byte InvalidBit = (byte)-1;
 const byte IncompleteBit = (byte)-2;
@@ -30,7 +29,6 @@ enum OwStatus
 {
 	OS_WaitReset,
 	OS_Presence,
-	OS_AfterPresence,
 	OS_WaitCommand,
 	OS_SearchRom,
 };
@@ -55,15 +53,7 @@ void owRelease()
 	owOutTestPin.writeHigh();
 }
 
-void owWrite(bool value)
-{
-	if (value)
-		owRelease();
-	else
-		owPullLow();
-}
-
-unsigned long resetStart = (unsigned long)-1;
+volatile unsigned long resetStart = (unsigned long)-1;
 unsigned long lastReset = (unsigned long)-1;
 unsigned long bitStart = (unsigned long)-1;
 byte receivingByte = 0;
@@ -79,7 +69,7 @@ void setup()
 	led.writeLow();
 
 	cli(); // disable interrupts
-    attachInterrupt(InterruptNumber,onewireInterrupt,CHANGE);
+    attachInterrupt(InterruptNumber,onewireInterrupt,FALLING);
 
 	// set timer0 interrupt at 250KHz (actually depends on compare match register OCR0A)
 	// 4us between each tick
@@ -99,11 +89,13 @@ void loop()
 {
 	//if ((count++) % 1000 == 0)
 	//	led.write(!led.read());
-    cli();//disable interrupts
+	cli();//disable interrupts
 	SerialChannel::swap();
-    sei();//enable interrupts
-    
+	sei();//enable interrupts
+
 	SerialChannel::flush();
+
+	owHandleReset();
 }
 
 void(*timerEvent)() = 0;
@@ -127,200 +119,195 @@ void owError(const char* message)
 	status = OS_WaitReset;
 }
 
-void owResetError()
+void owClearError()
 {
 	led.writeLow();
 }
 
-void onewireInterrupt(void)
+void owHandleReset()
 {
-	bool state = owPin.read();
-	unsigned long now = micros();
-
-	//led.write(state);
-
-	if (!state)
-		resetStart = now;
-
-	// handle reset
-	if (state)
+	unsigned long localResetStart = resetStart;
+	if (owPin.read())
 	{
-		unsigned long resetDuration = resetStart == (unsigned long)-1 ? (unsigned long)-1 : now - resetStart;
 		resetStart = (unsigned long)-1;
-		lastReset = now;
-
-		if (resetDuration >= ResetMinDuration && resetDuration <= ResetMaxDuration)
+	}
+	else if (localResetStart != (unsigned long)-1)
+	{
+		unsigned long resetDuration = micros() - localResetStart;
+		if (resetDuration >= ResetMinDuration)
 		{
-			//debug.SC_APPEND_STR_TIME("reset", now);
-			owResetError();
+			// wait for master to release the pin (or timeout if the pin is pulled low for too long)
+			unsigned long now = micros();
+			while (!owPin.read())
+			{
+				if (resetStart != localResetStart)
+					return;
+				now = micros();
+				if (now - localResetStart > ResetMaxDuration)
+				{
+					owError("Reset too long");
+					return;
+				}
+			}
+
+			cli();
+			owClearError();
+			lastReset = now;
 			status = OS_Presence;
 			setTimerEvent(PresenceWaitDuration - (micros() - now), &beginPresence);
-			return;
-		}
-	}
-
-	if (status == OS_AfterPresence)
-	{
-		status = OS_WaitCommand;
-		receivingByte = 0;
-		receivingBitPos = 0;
-		bitStart = (unsigned long)-1;
-
-		if (state)
-		{
-			// this is the rising edge of end-of-presence ; don't try to interpret it as a bit
-			return;
-		}
-	}
-
-	// read bytes
-	if (status == OS_WaitCommand)
-	{
-		byte bit = interpretReceivedEdgeAsBit(state, now);
-		if (bit != IncompleteBit)
-		{
-			if (bit == InvalidBit)
-				return;
-
-			receivingByte |= (bit << receivingBitPos);
-			++receivingBitPos;
-
-			if (receivingBitPos == 8)
-			{
-				debug.SC_APPEND_STR_INT("received byte", (long)receivingByte);
-
-				if (status == OS_WaitCommand && receivingByte == 0xF0)
-				{
-					status = OS_SearchRom;
-					searchROMReadingMasterResponseBit = false;
-					searchROMSendingInverse = false;
-					searchROMCurrentByte = 0;
-					searchROMCurrentBit = 0;
-					return;
-				}
-
-				receivingBitPos = 0;
-				receivingByte = 0;
-			}
-		}
-	}
-
-	if (status == OS_SearchRom)
-	{
-		byte currentByte = owROM[searchROMCurrentByte];
-		bool currentBit = bitRead(currentByte, searchROMCurrentBit);
-
-		if (searchROMReadingMasterResponseBit)
-		{
-			byte bit = interpretReceivedEdgeAsBit(state, now);
-			if (bit != IncompleteBit)
-			{
-				searchROMReadingMasterResponseBit = false;
-				if (bit == InvalidBit)
-					return;
-				if ((bit == 1) != currentBit)
-				{
-					debug.SC_APPEND_STR_TIME("Master didn't send our bit, leaving ROM search", now);
-					status = OS_WaitReset;
-				}
-			}
-		}
-		else
-		{
-			if (!state)
-			{
-				// master is pulling low, we must send our bit
-				bool bitToSend = searchROMSendingInverse ? !currentBit : currentBit;
-				sendBit(bitToSend);
-				if (bitToSend)
-					debug.SC_APPEND_STR_TIME("Sent ROM search bit : 1", now);
-				else
-					debug.SC_APPEND_STR_TIME("Sent ROM search bit : 0", now);
-
-				if (searchROMSendingInverse)
-				{
-					searchROMSendingInverse = false;
-					searchROMReadingMasterResponseBit = true;
-				}
-				else
-				{
-					searchROMSendingInverse = true;
-				}
-
-				if (searchROMCurrentBit == 8)
-				{
-					++searchROMCurrentByte;
-					searchROMCurrentBit = 0;
-					debug.SC_APPEND_STR_TIME("sent another ROM byte", now);
-				}
-
-				if (searchROMCurrentByte == 8)
-				{
-					searchROMCurrentByte = 0;
-					status = OS_WaitReset;
-					debug.SC_APPEND_STR_TIME("ROM sent entirely", now);
-				}
-			}
-			else
-			{
-				debug.SC_APPEND_STR_TIME("Search ROM : seen rising edge", now);
-			}
+			sei();
 		}
 	}
 }
 
-byte interpretReceivedEdgeAsBit(bool wireState, unsigned long now)
+void onewireInterrupt()
 {
-	if (!wireState)
+	//owOutTestPin.writeLow();
+	onewireInterruptImpl();
+	//owOutTestPin.writeHigh();
+}
+
+//bool debugState = false;
+volatile unsigned long lastInterrupt = 0;
+void onewireInterruptImpl(void)
+{
+	unsigned long now = micros();
+	if (now < lastInterrupt + 20)
+		return; // don't react to our own actions
+	lastInterrupt = now;
+	
+	//debugState = !debugState;
+	//owOutTestPin.write(debugState);
+
+	//led.write(state);
+
+	resetStart = now;
+
+	// read bytes
+	switch (status) {
+	case OS_WaitCommand:
 	{
-		// master just pulled low, this is a bit start
-		//debug.SC_APPEND_STR_TIME("bit start", now);
-		bitStart = now;
-		return IncompleteBit;
+		bool bit = readBit();
+
+		receivingByte |= ((bit ? 1 : 0) << receivingBitPos);
+		++receivingBitPos;
+
+		if (receivingBitPos == 8)
+		{
+			byte receivedByte = receivingByte;
+			receivingBitPos = 0;
+			receivingByte = 0;
+			//debug.SC_APPEND_STR_INT("received byte", (long)receivedByte);
+
+			if (status == OS_WaitCommand && receivedByte == 0xF0)
+			{
+				status = OS_SearchRom;
+				searchROMReadingMasterResponseBit = false;
+				searchROMSendingInverse = false;
+				searchROMCurrentByte = 0;
+				searchROMCurrentBit = 0;
+				attachInterrupt(InterruptNumber, onewireInterruptSearchROM, FALLING);
+				return;
+			}
+		}
+	} break;
+
+	case OS_SearchRom:
+	{
+		
+	} break;
+	}
+}
+
+bool ignoreNextFallingEdge = false;
+void onewireInterruptSearchROM()
+{
+	/*unsigned long now = micros();
+	if (now < lastInterrupt + 20)
+		return; // don't react to our own actions
+	lastInterrupt = now;*/
+	if (ignoreNextFallingEdge)
+	{
+		ignoreNextFallingEdge = false;
+		return;
+	}
+
+	if (searchROMReadingMasterResponseBit)
+	{
+		bool bit = readBit();
+
+		byte currentByte = owROM[searchROMCurrentByte];
+		bool currentBit = bitRead(currentByte, searchROMCurrentBit);
+
+		if (bit != currentBit)
+		{
+			debug.SC_APPEND_STR("Master didn't send our bit, leaving ROM search");
+			status = OS_WaitReset;
+			attachInterrupt(InterruptNumber, onewireInterrupt, FALLING);
+			return;
+		}
+
+		searchROMReadingMasterResponseBit = false;
+		++searchROMCurrentBit;
+		if (searchROMCurrentBit == 8)
+		{
+			++searchROMCurrentByte;
+			searchROMCurrentBit = 0;
+			debug.SC_APPEND_STR("sent another ROM byte");
+		}
+
+		if (searchROMCurrentByte == 8)
+		{
+			searchROMCurrentByte = 0;
+			status = OS_WaitReset;
+			debug.SC_APPEND_STR("ROM sent entirely");
+			attachInterrupt(InterruptNumber, onewireInterrupt, FALLING);
+			return;
+		}
 	}
 	else
 	{
-		if (bitStart == (unsigned long)-1)
-		{
-			//owError("Invalid read sequence");
-			//return InvalidBit;
+		byte currentByte = owROM[searchROMCurrentByte];
+		bool currentBit = bitRead(currentByte, searchROMCurrentBit);
+		//bool currentBit = 0;
 
-			// we missed the falling edge, we emulate one here (this can happen if handling of rising edge interrupt takes too long)
-			bitStart = now;
-		}
+		bool bitToSend = searchROMSendingInverse ? !currentBit : currentBit;
+		sendBit(bitToSend);
+		/*if (bitToSend)
+			debug.SC_APPEND_STR("sent ROM search bit : 1");
+		else
+			debug.SC_APPEND_STR("sent ROM search bit : 0");*/
 
-		// master released the line, we interpret it as a bit 1 or 0 depending on timing
-		unsigned long bitLength = now - bitStart;
-		bitStart = (unsigned long)-1;
-
-		if (bitLength < BitZeroMinDuration)
+		if (searchROMSendingInverse)
 		{
-			// received bit = 1
-			//debug.SC_APPEND_STR_TIME("received bit 1", now);
-			return 1;
-		}
-		else if (bitLength < BitZeroMaxDuration)
-		{
-			// received bit = 0
-			//debug.SC_APPEND_STR_TIME("received bit 0", now);
-			return 0;
+			searchROMSendingInverse = false;
+			searchROMReadingMasterResponseBit = true;
 		}
 		else
 		{
-			// this is not a valid bit
-			owError("Invalid read timing");
-			return InvalidBit;
+			searchROMSendingInverse = true;
 		}
 	}
+}
+
+bool readBit()
+{
+	delayMicroseconds(ReadBitSamplingTime);
+	return owPin.read();
 }
 
 void sendBit(bool bit)
 {
-	if (!bit)
+	if (bit)
+	{
+		delayMicroseconds(SendBitDuration);
+	}
+	else
 	{
 		owPullLow();
 		delayMicroseconds(SendBitDuration);
 		owRelease();
+		ignoreNextFallingEdge = true;
 	}
 }
 
@@ -328,7 +315,6 @@ void beginPresence()
 {
 	unsigned long now = micros();
 	owPullLow();
-	owOutTestPin.writeLow();
 	setTimerEvent(PresenceDuration, &endPresence);
 	debug.SC_APPEND_STR_TIME("reset", lastReset);
 	debug.SC_APPEND_STR_TIME("beginPresence", now);
@@ -340,7 +326,10 @@ void endPresence()
 	owRelease();
 	debug.SC_APPEND_STR_TIME("endPresence", now);
 
-	status = OS_AfterPresence;
+	status = OS_WaitCommand;
+	receivingByte = 0;
+	receivingBitPos = 0;
+	bitStart = (unsigned long)-1;
 }
 
 ISR(TIMER1_COMPA_vect) // timer1 interrupt
