@@ -216,7 +216,9 @@ void onewireInterruptImpl(void)
 				byte currentByte = owROM[searchROMCurrentByte];
 				searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
 				searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
-				attachInterrupt(InterruptNumber, onewireInterruptSearchROM, FALLING);
+				//attachInterrupt(InterruptNumber, onewireInterruptSearchROM, FALLING);
+				setTimerEvent(10, owSearchSendBit);
+				detachInterrupt(InterruptNumber);
 				return;
 			}
 		}
@@ -225,6 +227,57 @@ void onewireInterruptImpl(void)
 }
 
 bool ignoreNextFallingEdge = false;
+
+void owSearchSendBit()
+{
+	// wait for a falling edge (active wait is more reliable than interrupts to send the bit fast enough)
+	while (!owPin.read());
+	while (owPin.read());
+
+	//sendBit(searchRomNextBitToSend);
+	if (searchRomNextBitToSend)
+	{
+		//delayMicroseconds(SendBitDuration);
+		ignoreNextFallingEdge = false;
+	}
+	else
+	{
+		owPullLow();
+		//delayMicroseconds(SendBitDuration);
+		//owRelease();
+		ignoreNextFallingEdge = true;
+	}
+
+	unsigned long sendBitStart = micros();
+
+	if (searchROMSendingInverse)
+	{
+		searchROMSendingInverse = false;
+		searchROMReadingMasterResponseBit = true;
+	}
+	else
+	{
+		searchROMSendingInverse = true;
+	}
+
+	byte currentByte = owROM[searchROMCurrentByte];
+	searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
+	searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
+
+	if (searchROMReadingMasterResponseBit)
+	{
+		ignoreNextFallingEdge = true;
+		attachInterrupt(InterruptNumber, onewireInterruptSearchROM, FALLING);
+	}
+	else
+	{
+		setTimerEvent(10, owSearchSendBit);
+	}
+
+	delayMicroseconds(SendBitDuration - (micros() - sendBitStart));
+	owRelease();
+}
+
 void onewireInterruptSearchROM()
 {
 	if (ignoreNextFallingEdge)
@@ -262,6 +315,14 @@ void onewireInterruptSearchROM()
 			attachInterrupt(InterruptNumber, onewireInterrupt, FALLING);
 			return;
 		}
+
+		byte currentByte = owROM[searchROMCurrentByte];
+		searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
+		searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
+
+		setTimerEvent(10, owSearchSendBit);
+		detachInterrupt(InterruptNumber);
+		return;
 	}
 	else
 	{
@@ -290,7 +351,10 @@ void onewireInterruptSearchROM()
 bool readBit()
 {
 	delayMicroseconds(ReadBitSamplingTime);
-	return owPin.read();
+	bool bit = owPin.read();
+	//owOutTestPin.write(!owOutTestPin.read());
+	//owOutTestPin.write(!owOutTestPin.read());
+	return bit;
 }
 
 void sendBit(bool bit)
@@ -298,6 +362,7 @@ void sendBit(bool bit)
 	if (bit)
 	{
 		delayMicroseconds(SendBitDuration);
+		ignoreNextFallingEdge = false;
 	}
 	else
 	{
