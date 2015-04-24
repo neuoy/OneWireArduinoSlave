@@ -61,6 +61,8 @@ byte receivingBitPos = 0;
 
 void setup()
 {
+	owROM[7] = crc8((char*)owROM, 7);
+
 	led.outputMode();
 	owPin.inputMode();
 	owOutTestPin.outputMode();
@@ -183,11 +185,14 @@ void onewireInterruptImpl(void)
 
 	resetStart = now;
 
-	// read bytes
 	switch (status) {
 	case OS_WaitCommand:
 	{
 		bool bit = readBit();
+		/*if (bit)
+			debug.SC_APPEND_STR("received bit 1");
+		else
+			debug.SC_APPEND_STR("received bit 0");*/
 
 		receivingByte |= ((bit ? 1 : 0) << receivingBitPos);
 		++receivingBitPos;
@@ -211,21 +216,12 @@ void onewireInterruptImpl(void)
 			}
 		}
 	} break;
-
-	case OS_SearchRom:
-	{
-		
-	} break;
 	}
 }
 
 bool ignoreNextFallingEdge = false;
 void onewireInterruptSearchROM()
 {
-	/*unsigned long now = micros();
-	if (now < lastInterrupt + 20)
-		return; // don't react to our own actions
-	lastInterrupt = now;*/
 	if (ignoreNextFallingEdge)
 	{
 		ignoreNextFallingEdge = false;
@@ -339,4 +335,19 @@ ISR(TIMER1_COMPA_vect) // timer1 interrupt
 	timerEvent = 0;
 	if (event != 0)
 		event();
+}
+
+uint8_t crc8(char addr[], uint8_t len) {
+	uint8_t crc = 0;
+
+	while (len--) {
+		uint8_t inbyte = *addr++;
+		for (uint8_t i = 8; i; i--) {
+			uint8_t mix = (crc ^ inbyte) & 0x01;
+			crc >>= 1;
+			if (mix) crc ^= 0x8C;
+			inbyte >>= 1;
+		}
+	}
+	return crc;
 }
