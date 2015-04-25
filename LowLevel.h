@@ -71,23 +71,34 @@
 class Pin
 {
 private:
-	IO_REG_TYPE mask;
-	volatile IO_REG_TYPE *reg;
+	IO_REG_TYPE mask_;
+	volatile IO_REG_TYPE *reg_;
+	byte interruptNumber_;
 
 public:
-	inline Pin(uint8_t pin)
+	Pin(uint8_t pin)
 	{
-		mask = PIN_TO_BITMASK(pin);
-		reg = PIN_TO_BASEREG(pin);
+		mask_ = PIN_TO_BITMASK(pin);
+		reg_ = PIN_TO_BASEREG(pin);
+		
+		switch (pin)
+		{
+		case 2: interruptNumber_ = 0; break;
+		case 3: interruptNumber_ = 1; break;
+		default: interruptNumber_ = (byte)-1;
+		}
 	}
 
-	inline void inputMode() { DIRECT_MODE_INPUT(reg, mask); }
-	inline void outputMode() { DIRECT_MODE_OUTPUT(reg, mask); }
+	inline void inputMode() { DIRECT_MODE_INPUT(reg_, mask_); }
+	inline void outputMode() { DIRECT_MODE_OUTPUT(reg_, mask_); }
 
-	inline bool read() { return DIRECT_READ(reg, mask); }
-	inline void writeLow() { DIRECT_WRITE_LOW(reg, mask); }
-	inline void writeHigh() { DIRECT_WRITE_HIGH(reg, mask); }
+	inline bool read() { return DIRECT_READ(reg_, mask_) == 1; }
+	inline void writeLow() { DIRECT_WRITE_LOW(reg_, mask_); }
+	inline void writeHigh() { DIRECT_WRITE_HIGH(reg_, mask_); }
 	inline void write(bool value) { if (value) writeHigh(); else writeLow(); }
+
+	inline void attachInterrupt(void (*handler)(), int mode) { ::attachInterrupt(interruptNumber_, handler, mode); }
+	inline void detachInterrupt() { ::detachInterrupt(interruptNumber_); }
 };
 
 #endif

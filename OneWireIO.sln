@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OneWireIO", "OneWireIO.vcxproj", "{3B500971-1570-460F-81C3-22AC3B7764B9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerialMonitor", "SerialMonitor\SerialMonitor\SerialMonitor.csproj", "{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{3B500971-1570-460F-81C3-22AC3B7764B9} = {3B500971-1570-460F-81C3-22AC3B7764B9}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

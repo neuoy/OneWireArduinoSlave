@@ -10,6 +10,6 @@
     <ClInclude Include="OneWireSlave.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="OneWireIO.ino" />
+    <CustomBuild Include="OneWireIO.ino" />
   </ItemGroup>
 </Project>

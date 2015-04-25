@@ -50,6 +50,23 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>if exist $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf (
+echo Elf generated
+) else (
+echo no output
+exit /B 1
+)</Command>
+    </PostBuildEvent>
+    <PostBuildEvent />
+    <CustomBuild>
+      <Command>if exist $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf (
+echo Elf generated
+) else (
+echo no output
+exit /B 1
+)</Command>
+    </CustomBuild>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -66,13 +83,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <None Include="OneWireIO.ino">
+    <CustomBuild Include="OneWireIO.ino">
       <FileType>Document</FileType>
-    </None>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">if exist $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf del $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf
+D:\Outils\Arduino\arduino.exe --pref build.path=$(ProjectDir)$(IntDir) --upload %(FullPath)
+</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">always_build_$(ProjectConfiguration).dummy</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Building and uploading sketch...</Message>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="OneWireSlave.cpp" />
-    <ClCompile Include="SerialChannel.cpp" />
+    <ClCompile Include="OneWireSlave.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="SerialChannel.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LowLevel.h" />

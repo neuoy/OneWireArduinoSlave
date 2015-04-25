@@ -16,7 +16,6 @@ OneWireSlave oneWire(owROM, OWPin);
 void setup()
 {
 	led.outputMode();
-	
 	led.writeLow();
 
 	oneWire.enable();
@@ -24,14 +23,15 @@ void setup()
     Serial.begin(9600);
 }
 
-//int count = 0;
+int count = 0;
 void loop()
 {
-	/*if (count++ == 10000)
+	delay(1);
+	if (count++ == 1000)
 	{
 		led.write(!led.read());
 		count = 0;
-	}*/
+	}
 
 	cli();//disable interrupts
 	SerialChannel::swap();

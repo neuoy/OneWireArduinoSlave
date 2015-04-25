@@ -2,6 +2,7 @@
 #define _OneWireSlave_h_
 
 #include "Arduino.h"
+#include "LowLevel.h"
 
 class OneWireSlave
 {
@@ -23,6 +24,40 @@ public:
 
 	///! Enqueues the specified bytes in the send buffer. They will be sent in the background. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible.
 	void write(byte* bytes, short numBytes, void(*complete)(bool error));
+
+private:
+	byte crc8_(byte* data, short numBytes);
+
+	void setTimerEvent_(short delayMicroSeconds, void(*handler)());
+	void disableTimer_();
+
+	void onEnterInterrupt_();
+	void onLeaveInterrupt_();
+
+	void error_(const char* message);
+
+	void pullLow_();
+	void releaseBus_();
+
+	void beginWaitReset_();
+	void beginWaitCommand_();
+
+	// interrupt handlers
+	inline static void waitResetHandler_() { inst_->waitReset_(); }
+	void waitReset_();
+	inline static void beginPresenceHandler_() { inst_->beginPresence_(); }
+	void beginPresence_();
+	inline static void endPresenceHandler_() { inst_->endPresence_(); }
+	void endPresence_();
+
+private:
+	static OneWireSlave* inst_;
+	byte rom_[8];
+	Pin pin_;
+	byte tccr1bEnable_;
+
+	unsigned long resetStart_;
+	unsigned long lastReset_;
 };
 
 #endif
