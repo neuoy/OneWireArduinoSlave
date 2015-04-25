@@ -34,7 +34,7 @@ enum OwStatus
 };
 OwStatus status;
 
-byte owROM[8] = { 0xE2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00 };
+byte owROM[8] = { 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00 };
 byte searchROMCurrentByte = 0;
 byte searchROMCurrentBit = 0;
 bool searchROMSendingInverse = false;
@@ -44,23 +44,23 @@ void owPullLow()
 {
 	owPin.outputMode();
 	owPin.writeLow();
-	//owOutTestPin.writeLow();
+	owOutTestPin.writeLow();
 }
 
 void owRelease()
 {
 	owPin.inputMode();
-	//owOutTestPin.writeHigh();
+	owOutTestPin.writeHigh();
 }
 
 void onEnterInterrupt()
 {
-	owOutTestPin.writeLow();
+	//owOutTestPin.writeLow();
 }
 
 void onLeaveInterrupt()
 {
-	owOutTestPin.writeHigh();
+	//owOutTestPin.writeHigh();
 }
 
 volatile unsigned long resetStart = (unsigned long)-1;
@@ -83,7 +83,7 @@ void setup()
 	led.writeLow();
 
 	cli(); // disable interrupts
-    attachInterrupt(InterruptNumber,onewireInterrupt,FALLING);
+	attachInterrupt(InterruptNumber, owWaitResetInterrupt, CHANGE);
 
 	// set timer0 interrupt at 250KHz (actually depends on compare match register OCR0A)
 	// 4us between each tick
@@ -98,18 +98,16 @@ void setup()
     Serial.begin(9600);
 }
 
-//int count = 0;
+int count = 0;
 void loop()
 {
-	//if ((count++) % 1000 == 0)
-	//	led.write(!led.read());
+	if ((count++) % 1000 == 0)
+		led.write(!led.read());
 	cli();//disable interrupts
 	SerialChannel::swap();
 	sei();//enable interrupts
 
 	SerialChannel::flush();
-
-	owHandleReset();
 }
 
 void(*timerEvent)() = 0;
@@ -138,56 +136,54 @@ void owClearError()
 	led.writeLow();
 }
 
-void owHandleReset()
+void owWaitResetInterrupt()
 {
-	unsigned long localResetStart = resetStart;
-	if (owPin.read())
+	onEnterInterrupt();
+	bool state = owPin.read();
+	unsigned long now = micros();
+	if (state)
 	{
-		resetStart = (unsigned long)-1;
-	}
-	else if (localResetStart != (unsigned long)-1)
-	{
-		unsigned long resetDuration = micros() - localResetStart;
+		if (resetStart == (unsigned int)-1)
+		{
+			onLeaveInterrupt();
+			return;
+		}
+
+		unsigned long resetDuration = now - resetStart;
+		resetStart = (unsigned int)-1;
 		if (resetDuration >= ResetMinDuration)
 		{
-			// wait for master to release the pin (or timeout if the pin is pulled low for too long)
-			unsigned long now = micros();
-			while (!owPin.read())
+			if (resetDuration > ResetMaxDuration)
 			{
-				if (resetStart != localResetStart)
-					return;
-				now = micros();
-				if (now - localResetStart > ResetMaxDuration)
-				{
-					owError("Reset too long");
-					return;
-				}
+				owError("Reset too long");
+				onLeaveInterrupt();
+				return;
 			}
 
-			cli();
 			owClearError();
 			lastReset = now;
 			status = OS_Presence;
 			setTimerEvent(PresenceWaitDuration - (micros() - now), &beginPresence);
-			sei();
 		}
 	}
-}
-
-void onewireInterrupt()
-{
-	onEnterInterrupt();
-	onewireInterruptImpl();
+	else
+	{
+		resetStart = now;
+	}
 	onLeaveInterrupt();
 }
 
 //bool debugState = false;
 volatile unsigned long lastInterrupt = 0;
-void onewireInterruptImpl(void)
+void owReceiveCommandInterrupt(void)
 {
+	onEnterInterrupt();
 	unsigned long now = micros();
 	if (now < lastInterrupt + 20)
+	{
+		onLeaveInterrupt();
 		return; // don't react to our own actions
+	}
 	lastInterrupt = now;
 	
 	//debugState = !debugState;
@@ -195,45 +191,41 @@ void onewireInterruptImpl(void)
 
 	//led.write(state);
 
-	resetStart = now;
+	bool bit = readBit();
+	/*if (bit)
+		debug.SC_APPEND_STR("received bit 1");
+	else
+		debug.SC_APPEND_STR("received bit 0");*/
 
-	switch (status) {
-	case OS_WaitCommand:
+	receivingByte |= ((bit ? 1 : 0) << receivingBitPos);
+	++receivingBitPos;
+
+	if (receivingBitPos == 8)
 	{
-		bool bit = readBit();
-		/*if (bit)
-			debug.SC_APPEND_STR("received bit 1");
-		else
-			debug.SC_APPEND_STR("received bit 0");*/
+		byte receivedByte = receivingByte;
+		receivingBitPos = 0;
+		receivingByte = 0;
+		//debug.SC_APPEND_STR_INT("received byte", (long)receivedByte);
 
-		receivingByte |= ((bit ? 1 : 0) << receivingBitPos);
-		++receivingBitPos;
-
-		if (receivingBitPos == 8)
+		if (status == OS_WaitCommand && receivedByte == 0xF0)
 		{
-			byte receivedByte = receivingByte;
-			receivingBitPos = 0;
-			receivingByte = 0;
-			//debug.SC_APPEND_STR_INT("received byte", (long)receivedByte);
-
-			if (status == OS_WaitCommand && receivedByte == 0xF0)
-			{
-				status = OS_SearchRom;
-				searchROMReadingMasterResponseBit = false;
-				searchROMSendingInverse = false;
-				searchROMCurrentByte = 0;
-				searchROMCurrentBit = 0;
-				byte currentByte = owROM[searchROMCurrentByte];
-				searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
-				searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
-				//attachInterrupt(InterruptNumber, onewireInterruptSearchROM, FALLING);
-				setTimerEvent(10, owSearchSendBit);
-				detachInterrupt(InterruptNumber);
-				return;
-			}
+			status = OS_SearchRom;
+			searchROMReadingMasterResponseBit = false;
+			searchROMSendingInverse = false;
+			searchROMCurrentByte = 0;
+			searchROMCurrentBit = 0;
+			byte currentByte = owROM[searchROMCurrentByte];
+			searchRomNextBit = bitRead(currentByte, searchROMCurrentBit);
+			searchRomNextBitToSend = searchROMSendingInverse ? !searchRomNextBit : searchRomNextBit;
+			//attachInterrupt(InterruptNumber, onewireInterruptSearchROM, FALLING);
+			setTimerEvent(10, owSearchSendBit);
+			detachInterrupt(InterruptNumber);
+			onLeaveInterrupt();
+			return;
 		}
-	} break;
 	}
+
+	onLeaveInterrupt();
 }
 
 bool ignoreNextFallingEdge = false;
@@ -311,7 +303,7 @@ void onewireInterruptSearchROM()
 		{
 			debug.SC_APPEND_STR("Master didn't send our bit, leaving ROM search");
 			status = OS_WaitReset;
-			attachInterrupt(InterruptNumber, onewireInterrupt, FALLING);
+			attachInterrupt(InterruptNumber, owWaitResetInterrupt, CHANGE);
 			onLeaveInterrupt();
 			return;
 		}
@@ -330,7 +322,7 @@ void onewireInterruptSearchROM()
 			searchROMCurrentByte = 0;
 			status = OS_WaitReset;
 			debug.SC_APPEND_STR("ROM sent entirely");
-			attachInterrupt(InterruptNumber, onewireInterrupt, FALLING);
+			attachInterrupt(InterruptNumber, owWaitResetInterrupt, CHANGE);
 			onLeaveInterrupt();
 			return;
 		}
@@ -411,6 +403,7 @@ void endPresence()
 	debug.SC_APPEND_STR_TIME("endPresence", now);
 
 	status = OS_WaitCommand;
+	attachInterrupt(InterruptNumber, owReceiveCommandInterrupt, FALLING);
 	receivingByte = 0;
 	receivingBitPos = 0;
 	bitStart = (unsigned long)-1;
