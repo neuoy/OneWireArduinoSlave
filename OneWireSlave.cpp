@@ -16,9 +16,11 @@ namespace
 	const unsigned long PresenceWaitDuration = 30;
 	const unsigned long PresenceDuration = 300;
 
-	//const unsigned long ReadBitSamplingTime = 30;
+	const unsigned long ReadBitSamplingTime = 30;
 
 	const unsigned long SendBitDuration = 35;
+
+	const byte ReceiveCommand = (byte)-1;
 
 	void(*timerEvent)() = 0;
 }
@@ -37,6 +39,7 @@ OneWireSlave::OneWireSlave(byte* rom, byte pinNumber)
 	: pin_(pinNumber)
 	, resetStart_((unsigned long)-1)
 	, lastReset_(0)
+	, ignoreNextEdge_(false)
 {
 	inst_ = this; // we can have only one instance in the current implementation
 	memcpy(rom_, rom, 7);
@@ -47,6 +50,8 @@ void OneWireSlave::enable()
 {
 	#ifdef DEBUG_LOG
 	debug.append("Enabling 1-wire library");
+	dbgOutput.outputMode();
+	dbgOutput.writeHigh();
 	#endif
 
 
@@ -124,7 +129,6 @@ void OneWireSlave::disableTimer_()
 
 void OneWireSlave::onEnterInterrupt_()
 {
-	dbgOutput.outputMode();
 	dbgOutput.writeLow();
 }
 
@@ -145,11 +149,17 @@ void OneWireSlave::pullLow_()
 {
 	pin_.outputMode();
 	pin_.writeLow();
+#ifdef DEBUG_LOG
+	//dbgOutput.writeLow();
+#endif
 }
 
 void OneWireSlave::releaseBus_()
 {
 	pin_.inputMode();
+#ifdef DEBUG_LOG
+	//dbgOutput.writeHigh();
+#endif
 }
 
 void OneWireSlave::beginWaitReset_()
@@ -184,6 +194,7 @@ void OneWireSlave::waitReset_()
 			}
 
 			lastReset_ = now;
+			pin_.detachInterrupt();
 			setTimerEvent_(PresenceWaitDuration - (micros() - now), &OneWireSlave::beginPresenceHandler_);
 		}
 	}
@@ -218,8 +229,69 @@ void OneWireSlave::endPresence_()
 
 void OneWireSlave::beginWaitCommand_()
 {
-	/*pin_.attachInterrupt(&OneWireSlave::waitCommand_, FALLING);
-	receivingByte = 0;
-	receivingBitPos = 0;
-	bitStart = (unsigned long)-1;*/
+	receiveTarget_ = ReceiveCommand;
+	beginReceive_();
+}
+
+void OneWireSlave::beginReceive_()
+{
+	ignoreNextEdge_ = true;
+	pin_.attachInterrupt(&OneWireSlave::receiveHandler_, FALLING);
+	receivingByte_ = 0;
+	receivingBitPos_ = 0;
+}
+
+void OneWireSlave::receive_()
+{
+	onEnterInterrupt_();
+
+	if (!ignoreNextEdge_)
+		setTimerEvent_(ReadBitSamplingTime, &OneWireSlave::receiveBitHandler_);
+
+	ignoreNextEdge_ = false;
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::receiveBit_()
+{
+	onEnterInterrupt_();
+
+	bool bit = pin_.read();
+	//dbgOutput.writeLow();
+	//dbgOutput.writeHigh();
+
+	receivingByte_ |= ((bit ? 1 : 0) << receivingBitPos_);
+	++receivingBitPos_;
+
+	if (receivingBitPos_ == 8)
+	{
+		#ifdef DEBUG_LOG
+		debug.SC_APPEND_STR_INT("received byte", (long)receivingByte_);
+		#endif
+		if (receiveTarget_ == ReceiveCommand)
+		{
+			if (receivingByte_ == 0xF0)
+			{
+				beginSearchRom_();
+			}
+			else
+			{
+				// TODO: send command to client code
+				beginWaitReset_();
+			}
+		}
+		else
+		{
+			// TODO: add byte in receive buffer
+			beginWaitReset_();
+		}
+	}
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::beginSearchRom_()
+{
+	pin_.detachInterrupt();
 }

@@ -41,6 +41,8 @@ private:
 
 	void beginWaitReset_();
 	void beginWaitCommand_();
+	void beginReceive_();
+	void beginSearchRom_();
 
 	// interrupt handlers
 	inline static void waitResetHandler_() { inst_->waitReset_(); }
@@ -49,6 +51,10 @@ private:
 	void beginPresence_();
 	inline static void endPresenceHandler_() { inst_->endPresence_(); }
 	void endPresence_();
+	inline static void receiveHandler_() { inst_->receive_(); }
+	void receive_();
+	inline static void receiveBitHandler_() { inst_->receiveBit_(); }
+	void receiveBit_();
 
 private:
 	static OneWireSlave* inst_;
@@ -58,6 +64,12 @@ private:
 
 	unsigned long resetStart_;
 	unsigned long lastReset_;
+
+	byte receivingByte_;
+	byte receivingBitPos_;
+	byte receiveTarget_;
+
+	bool ignoreNextEdge_;
 };
 
 #endif
