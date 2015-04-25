@@ -2,10 +2,12 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="SerialChannel.cpp" />
+    <ClCompile Include="OneWireSlave.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SerialChannel.h" />
     <ClInclude Include="LowLevel.h" />
+    <ClInclude Include="OneWireSlave.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OneWireIO.ino" />

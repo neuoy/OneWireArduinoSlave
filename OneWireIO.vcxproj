@@ -71,10 +71,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="OneWireSlave.cpp" />
     <ClCompile Include="SerialChannel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LowLevel.h" />
+    <ClInclude Include="OneWireSlave.h" />
     <ClInclude Include="SerialChannel.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
