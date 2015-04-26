@@ -7,14 +7,11 @@
 class OneWireSlave
 {
 public:
-	///! Constructs a 1-wire slave that will be identified by the specified ROM (7 bytes, starting from the family code, CRC will be computed internally). Call enable to actually start listening for the 1-wire master.
-	OneWireSlave(byte* rom, byte pinNumber);
-
-	///! Starts listening for the 1-wire master. Reset, Presence and SearchRom are handled automatically. The library will use interrupts on the pin specified in the constructor, as well as one hardware timer. Blocking interrupts (either by disabling them explicitely with sei/cli, or by spending time in another interrupt) can lead to malfunction of the library, due to tight timing for some 1-wire operations.
-	void enable();
+	///! Starts listening for the 1-wire master, on the specified pin, as a virtual slave device identified by the specified ROM (7 bytes, starting from the family code, CRC will be computed internally). Reset, Presence, SearchRom and MatchRom are handled automatically. The library will use the external interrupt on the specified pin (note that this is usually not possible with all pins, depending on the board), as well as one hardware timer. Blocking interrupts (either by disabling them explicitely with sei/cli, or by spending time in another interrupt) can lead to malfunction of the library, due to tight timing for some 1-wire operations.
+	void begin(byte* rom, byte pinNumber);
 
 	///! Stops all 1-wire activities, which frees hardware resources for other purposes.
-	void disable();
+	void end();
 
 	///! Pops one byte from the receive buffer, or returns false if no byte has been received.
 	bool read(byte& b);
@@ -26,74 +23,62 @@ public:
 	void write(byte* bytes, short numBytes, void(*complete)(bool error));
 
 private:
-	byte crc8_(byte* data, short numBytes);
+	static byte crc8_(byte* data, short numBytes);
 
-	void setTimerEvent_(short delayMicroSeconds, void(*handler)());
-	void disableTimer_();
+	static void setTimerEvent_(short delayMicroSeconds, void(*handler)());
+	static void disableTimer_();
 
-	void onEnterInterrupt_();
-	void onLeaveInterrupt_();
+	static void onEnterInterrupt_();
+	static void onLeaveInterrupt_();
 
-	void error_(const char* message);
+	static void error_(const char* message);
 
-	void pullLow_();
-	void releaseBus_();
+	static void pullLow_();
+	static void releaseBus_();
 
-	void beginWaitReset_();
-	void beginWaitCommand_();
-	void beginReceive_();
+	static void beginReceiveBit_(void(*completeCallback)(bool bit, bool error));
+	static void beginSendBit_(bool bit, void(*completeCallback)(bool error));
 
-	void beginReceiveBit_(void(*completeCallback)(bool bit, bool error));
-	void beginSendBit_(bool bit, void(*completeCallback)(bool error));
+	static void beginWaitReset_();
+	static void beginWaitCommand_();
+	static void beginReceive_();
+	static void onBitReceived_(bool bit, bool error);
 
-	void beginSearchRom_();
-	void beginSearchRomSendBit_();
-	inline static void continueSearchRomHandler_(bool error) { inst_->continueSearchRom_(error); }
-	void continueSearchRom_(bool error);
-	inline static void searchRomOnBitReceivedHandler_(bool bit, bool error) { inst_->searchRomOnBitReceived_(bit, error); }
-	void searchRomOnBitReceived_(bool bit, bool error);
+	static void beginSearchRom_();
+	static void beginSearchRomSendBit_();
+	static void continueSearchRom_(bool error);
+	static void searchRomOnBitReceived_(bool bit, bool error);
 
 	// interrupt handlers
-	inline static void waitResetHandler_() { inst_->waitReset_(); }
-	void waitReset_();
-	inline static void beginPresenceHandler_() { inst_->beginPresence_(); }
-	void beginPresence_();
-	inline static void endPresenceHandler_() { inst_->endPresence_(); }
-	void endPresence_();
-	inline static void receiveHandler_() { inst_->receive_(); }
-	void receive_();
-	inline static void readBitHandler_() { inst_->readBit_(); }
-	void readBit_();
-	inline static void onBitReceivedHandler_(bool bit, bool error) { inst_->onBitReceived_(bit, error); }
-	void onBitReceived_(bool bit, bool error);
-	inline static void sendBitOneHandler_() { inst_->sendBitOne_(); }
-	void sendBitOne_();
-	inline static void sendBitZeroHandler_() { inst_->sendBitZero_(); }
-	void sendBitZero_();
-	inline static void endSendBitZeroHandler_() { inst_->endSendBitZero_(); }
-	void endSendBitZero_();
+	static void waitReset_();
+	static void beginPresence_();
+	static void endPresence_();
+	static void receive_();
+	static void readBit_();
+	static void sendBitOne_();
+	static void sendBitZero_();
+	static void endSendBitZero_();
 
 private:
-	static OneWireSlave* inst_;
-	byte rom_[8];
-	Pin pin_;
-	byte tccr1bEnable_;
+	static byte rom_[8];
+	static Pin pin_;
+	static byte tccr1bEnable_;
 
-	unsigned long resetStart_;
-	unsigned long lastReset_;
+	static unsigned long resetStart_;
+	static unsigned long lastReset_;
 
-	void(*receiveBitCallback_)(bool bit, bool error);
-	void(*bitSentCallback_)(bool error);
+	static void(*receiveBitCallback_)(bool bit, bool error);
+	static void(*bitSentCallback_)(bool error);
 
-	byte receivingByte_;
-	byte receivingBitPos_;
-	byte receiveTarget_;
+	static byte receivingByte_;
+	static byte receivingBitPos_;
+	static byte receiveTarget_;
 
-	bool ignoreNextEdge_;
-
-	byte searchRomBytePos_;
-	byte searchRomBitPos_;
-	bool searchRomInverse_;
+	static byte searchRomBytePos_;
+	static byte searchRomBitPos_;
+	static bool searchRomInverse_;
 };
+
+extern OneWireSlave OneWire;
 
 #endif

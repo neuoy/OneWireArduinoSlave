@@ -11,14 +11,13 @@ SerialChannel debug("debug");
 Pin led(LEDPin);
 
 byte owROM[7] = { 0xE2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
-OneWireSlave oneWire(owROM, OWPin);
 
 void setup()
 {
 	led.outputMode();
 	led.writeLow();
 
-	oneWire.enable();
+	OneWire.begin(owROM, OWPin);
     
     Serial.begin(9600);
 }
@@ -40,7 +39,7 @@ void loop()
 	SerialChannel::flush();
 
 	byte b;
-	if (oneWire.read(b))
+	if (OneWire.read(b))
 	{
 		char msg[32];
 		sprintf(msg, "Received byte : %d", (int)b);

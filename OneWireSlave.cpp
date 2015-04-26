@@ -25,7 +25,25 @@ namespace
 	void(*timerEvent)() = 0;
 }
 
-OneWireSlave* OneWireSlave::inst_ = 0;
+OneWireSlave OneWire;
+
+byte OneWireSlave::rom_[8];
+Pin OneWireSlave::pin_;
+byte OneWireSlave::tccr1bEnable_;
+
+unsigned long OneWireSlave::resetStart_;
+unsigned long OneWireSlave::lastReset_;
+
+void(*OneWireSlave::receiveBitCallback_)(bool bit, bool error);
+void(*OneWireSlave::bitSentCallback_)(bool error);
+
+byte OneWireSlave::receivingByte_;
+byte OneWireSlave::receivingBitPos_;
+byte OneWireSlave::receiveTarget_;
+
+byte OneWireSlave::searchRomBytePos_;
+byte OneWireSlave::searchRomBitPos_;
+bool OneWireSlave::searchRomInverse_;
 
 ISR(TIMER1_COMPA_vect) // timer1 interrupt
 {
@@ -35,38 +53,37 @@ ISR(TIMER1_COMPA_vect) // timer1 interrupt
 	event();
 }
 
-OneWireSlave::OneWireSlave(byte* rom, byte pinNumber)
-	: pin_(pinNumber)
-	, resetStart_((unsigned long)-1)
-	, lastReset_(0)
-	, ignoreNextEdge_(false)
+void OneWireSlave::begin(byte* rom, byte pinNumber)
 {
-	inst_ = this; // we can have only one instance in the current implementation
+	pin_ = Pin(pinNumber);
+	resetStart_ = (unsigned long)-1;
+	lastReset_ = 0;
+
 	memcpy(rom_, rom, 7);
 	rom_[7] = crc8_(rom_, 7);
-}
 
-void OneWireSlave::enable()
-{
 	#ifdef DEBUG_LOG
 	debug.append("Enabling 1-wire library");
 	dbgOutput.outputMode();
 	dbgOutput.writeHigh();
 	#endif
 
-
 	cli(); // disable interrupts
 	pin_.inputMode();
+	pin_.writeLow(); // make sure the internal pull-up resistor is disabled
+
 	// prepare hardware timer
 	TCCR1A = 0;
 	TCCR1B = 0;
 	TIMSK1 |= (1 << OCIE1A); // enable timer compare interrupt
 	tccr1bEnable_ = (1 << WGM12) | (1 << CS11) | (1 << CS10); // turn on CTC mode with 64 prescaler
+
+	// start 1-wire activity
 	beginWaitReset_();
 	sei(); // enable interrupts
 }
 
-void OneWireSlave::disable()
+void OneWireSlave::end()
 {
 	#ifdef DEBUG_LOG
 	debug.append("Disabling 1-wire library");
@@ -165,7 +182,7 @@ void OneWireSlave::releaseBus_()
 void OneWireSlave::beginWaitReset_()
 {
 	disableTimer_();
-	pin_.attachInterrupt(&OneWireSlave::waitResetHandler_, CHANGE);
+	pin_.attachInterrupt(&OneWireSlave::waitReset_, CHANGE);
 	resetStart_ = (unsigned int)-1;
 }
 
@@ -195,7 +212,7 @@ void OneWireSlave::waitReset_()
 
 			lastReset_ = now;
 			pin_.detachInterrupt();
-			setTimerEvent_(PresenceWaitDuration - (micros() - now), &OneWireSlave::beginPresenceHandler_);
+			setTimerEvent_(PresenceWaitDuration - (micros() - now), &OneWireSlave::beginPresence_);
 		}
 	}
 	else
@@ -209,7 +226,7 @@ void OneWireSlave::beginPresence_()
 {
 	unsigned long now = micros();
 	pullLow_();
-	setTimerEvent_(PresenceDuration, &OneWireSlave::endPresenceHandler_);
+	setTimerEvent_(PresenceDuration, &OneWireSlave::endPresence_);
 	#ifdef DEBUG_LOG
 	debug.SC_APPEND_STR_TIME("reset", lastReset_);
 	debug.SC_APPEND_STR_TIME("beginPresence", now);
@@ -224,7 +241,6 @@ void OneWireSlave::endPresence_()
 	debug.SC_APPEND_STR_TIME("endPresence", now);
 	#endif
 
-	ignoreNextEdge_ = true;
 	beginWaitCommand_();
 }
 
@@ -238,26 +254,21 @@ void OneWireSlave::beginReceive_()
 {
 	receivingByte_ = 0;
 	receivingBitPos_ = 0;
-	beginReceiveBit_(&OneWireSlave::onBitReceivedHandler_);
+	beginReceiveBit_(&OneWireSlave::onBitReceived_);
 }
 
 void OneWireSlave::beginReceiveBit_(void(*completeCallback)(bool bit, bool error))
 {
 	receiveBitCallback_ = completeCallback;
-	pin_.attachInterrupt(&OneWireSlave::receiveHandler_, FALLING);
+	pin_.attachInterrupt(&OneWireSlave::receive_, FALLING);
 }
 
 void OneWireSlave::receive_()
 {
 	onEnterInterrupt_();
 
-	if (!ignoreNextEdge_)
-	{
-		pin_.detachInterrupt();
-		setTimerEvent_(ReadBitSamplingTime, &OneWireSlave::readBitHandler_);
-	}
-
-	ignoreNextEdge_ = false;
+	pin_.detachInterrupt();
+	setTimerEvent_(ReadBitSamplingTime, &OneWireSlave::readBit_);
 
 	onLeaveInterrupt_();
 }
@@ -267,11 +278,11 @@ void OneWireSlave::beginSendBit_(bool bit, void(*completeCallback)(bool error))
 	bitSentCallback_ = completeCallback;
 	if (bit)
 	{
-		pin_.attachInterrupt(&OneWireSlave::sendBitOneHandler_, FALLING);
+		pin_.attachInterrupt(&OneWireSlave::sendBitOne_, FALLING);
 	}
 	else
 	{
-		pin_.attachInterrupt(&OneWireSlave::sendBitZeroHandler_, FALLING);
+		pin_.attachInterrupt(&OneWireSlave::sendBitZero_, FALLING);
 	}
 }
 
@@ -279,28 +290,19 @@ void OneWireSlave::sendBitOne_()
 {
 	onEnterInterrupt_();
 
-	bool ignoreEdge = ignoreNextEdge_;
-	ignoreNextEdge_ = false;
-
-	if (!ignoreEdge)
-		bitSentCallback_(false);
+	bitSentCallback_(false);
 
 	onLeaveInterrupt_();
 }
 
 void OneWireSlave::sendBitZero_()
 {
+	pullLow_(); // this must be executed first because the timing is very tight with some master devices
+
 	onEnterInterrupt_();
 
-	if (ignoreNextEdge_)
-	{
-		ignoreNextEdge_ = false;
-		return;
-	}
-
-	pullLow_();
 	pin_.detachInterrupt();
-	setTimerEvent_(SendBitDuration, &OneWireSlave::endSendBitZeroHandler_);
+	setTimerEvent_(SendBitDuration, &OneWireSlave::endSendBitZero_);
 
 	onLeaveInterrupt_();
 }
@@ -366,7 +368,7 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 		}
 	}
 	
-	beginReceiveBit_(&OneWireSlave::onBitReceivedHandler_);
+	beginReceiveBit_(&OneWireSlave::onBitReceived_);
 }
 
 void OneWireSlave::beginSearchRom_()
@@ -384,7 +386,7 @@ void OneWireSlave::beginSearchRomSendBit_()
 	bool currentBit = bitRead(currentByte, searchRomBitPos_);
 	bool bitToSend = searchRomInverse_ ? !currentBit : currentBit;
 
-	beginSendBit_(bitToSend, &OneWireSlave::continueSearchRomHandler_);
+	beginSendBit_(bitToSend, &OneWireSlave::continueSearchRom_);
 }
 
 void OneWireSlave::continueSearchRom_(bool error)
@@ -403,7 +405,7 @@ void OneWireSlave::continueSearchRom_(bool error)
 	}
 	else
 	{
-		beginReceiveBit_(&OneWireSlave::searchRomOnBitReceivedHandler_);
+		beginReceiveBit_(&OneWireSlave::searchRomOnBitReceived_);
 	}
 }
 

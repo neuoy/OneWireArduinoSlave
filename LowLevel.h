@@ -76,6 +76,12 @@ private:
 	byte interruptNumber_;
 
 public:
+	Pin()
+		: mask_(0)
+		, reg_(0)
+		, interruptNumber_((byte)-1)
+	{ }
+
 	Pin(uint8_t pin)
 	{
 		mask_ = PIN_TO_BITMASK(pin);
@@ -97,7 +103,11 @@ public:
 	inline void writeHigh() { DIRECT_WRITE_HIGH(reg_, mask_); }
 	inline void write(bool value) { if (value) writeHigh(); else writeLow(); }
 
-	inline void attachInterrupt(void (*handler)(), int mode) { ::attachInterrupt(interruptNumber_, handler, mode); }
+	inline void attachInterrupt(void (*handler)(), int mode)
+	{
+		EIFR |= (1 << INTF0); // clear any pending interrupt (we want to call the handler only for interrupts happending after it is attached)
+		::attachInterrupt(interruptNumber_, handler, mode);
+	}
 	inline void detachInterrupt() { ::detachInterrupt(interruptNumber_); }
 };
 
