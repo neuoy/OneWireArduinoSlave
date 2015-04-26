@@ -224,6 +224,7 @@ void OneWireSlave::endPresence_()
 	debug.SC_APPEND_STR_TIME("endPresence", now);
 	#endif
 
+	ignoreNextEdge_ = true;
 	beginWaitCommand_();
 }
 
@@ -235,10 +236,15 @@ void OneWireSlave::beginWaitCommand_()
 
 void OneWireSlave::beginReceive_()
 {
-	ignoreNextEdge_ = true;
-	pin_.attachInterrupt(&OneWireSlave::receiveHandler_, FALLING);
 	receivingByte_ = 0;
 	receivingBitPos_ = 0;
+	beginReceiveBit_(&OneWireSlave::onBitReceivedHandler_);
+}
+
+void OneWireSlave::beginReceiveBit_(void(*completeCallback)(bool bit, bool error))
+{
+	receiveBitCallback_ = completeCallback;
+	pin_.attachInterrupt(&OneWireSlave::receiveHandler_, FALLING);
 }
 
 void OneWireSlave::receive_()
@@ -246,20 +252,89 @@ void OneWireSlave::receive_()
 	onEnterInterrupt_();
 
 	if (!ignoreNextEdge_)
-		setTimerEvent_(ReadBitSamplingTime, &OneWireSlave::receiveBitHandler_);
+	{
+		pin_.detachInterrupt();
+		setTimerEvent_(ReadBitSamplingTime, &OneWireSlave::readBitHandler_);
+	}
 
 	ignoreNextEdge_ = false;
 
 	onLeaveInterrupt_();
 }
 
-void OneWireSlave::receiveBit_()
+void OneWireSlave::beginSendBit_(bool bit, void(*completeCallback)(bool error))
+{
+	bitSentCallback_ = completeCallback;
+	if (bit)
+	{
+		pin_.attachInterrupt(&OneWireSlave::sendBitOneHandler_, FALLING);
+	}
+	else
+	{
+		pin_.attachInterrupt(&OneWireSlave::sendBitZeroHandler_, FALLING);
+	}
+}
+
+void OneWireSlave::sendBitOne_()
+{
+	onEnterInterrupt_();
+
+	bool ignoreEdge = ignoreNextEdge_;
+	ignoreNextEdge_ = false;
+
+	if (!ignoreEdge)
+		bitSentCallback_(false);
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::sendBitZero_()
+{
+	onEnterInterrupt_();
+
+	if (ignoreNextEdge_)
+	{
+		ignoreNextEdge_ = false;
+		return;
+	}
+
+	pullLow_();
+	pin_.detachInterrupt();
+	setTimerEvent_(SendBitDuration, &OneWireSlave::endSendBitZeroHandler_);
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::endSendBitZero_()
+{
+	onEnterInterrupt_();
+
+	releaseBus_();
+	bitSentCallback_(false);
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::readBit_()
 {
 	onEnterInterrupt_();
 
 	bool bit = pin_.read();
+	receiveBitCallback_(bit, false);
 	//dbgOutput.writeLow();
 	//dbgOutput.writeHigh();
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::onBitReceived_(bool bit, bool error)
+{
+	if (error)
+	{
+		error_("Invalid bit");
+		beginWaitReset_();
+		return;
+	}
 
 	receivingByte_ |= ((bit ? 1 : 0) << receivingBitPos_);
 	++receivingBitPos_;
@@ -274,24 +349,102 @@ void OneWireSlave::receiveBit_()
 			if (receivingByte_ == 0xF0)
 			{
 				beginSearchRom_();
+				return;
 			}
 			else
 			{
 				// TODO: send command to client code
 				beginWaitReset_();
+				return;
 			}
 		}
 		else
 		{
 			// TODO: add byte in receive buffer
 			beginWaitReset_();
+			return;
 		}
 	}
-
-	onLeaveInterrupt_();
+	
+	beginReceiveBit_(&OneWireSlave::onBitReceivedHandler_);
 }
 
 void OneWireSlave::beginSearchRom_()
 {
-	pin_.detachInterrupt();
+	searchRomBytePos_ = 0;
+	searchRomBitPos_ = 0;
+	searchRomInverse_ = false;
+
+	beginSearchRomSendBit_();
+}
+
+void OneWireSlave::beginSearchRomSendBit_()
+{
+	byte currentByte = rom_[searchRomBytePos_];
+	bool currentBit = bitRead(currentByte, searchRomBitPos_);
+	bool bitToSend = searchRomInverse_ ? !currentBit : currentBit;
+
+	beginSendBit_(bitToSend, &OneWireSlave::continueSearchRomHandler_);
+}
+
+void OneWireSlave::continueSearchRom_(bool error)
+{
+	if (error)
+	{
+		error_("Failed to send bit");
+		beginWaitReset_();
+		return;
+	}
+
+	searchRomInverse_ = !searchRomInverse_;
+	if (searchRomInverse_)
+	{
+		beginSearchRomSendBit_();
+	}
+	else
+	{
+		beginReceiveBit_(&OneWireSlave::searchRomOnBitReceivedHandler_);
+	}
+}
+
+void OneWireSlave::searchRomOnBitReceived_(bool bit, bool error)
+{
+	if (error)
+	{
+		error_("Bit read error during ROM search");
+		beginWaitReset_();
+		return;
+	}
+
+	byte currentByte = rom_[searchRomBytePos_];
+	bool currentBit = bitRead(currentByte, searchRomBitPos_);
+
+	if (bit == currentBit)
+	{
+		++searchRomBitPos_;
+		if (searchRomBitPos_ == 8)
+		{
+			searchRomBitPos_ = 0;
+			++searchRomBytePos_;
+		}
+
+		if (searchRomBytePos_ == 8)
+		{
+			#ifdef DEBUG_LOG
+			debug.SC_APPEND_STR("ROM sent entirely");
+			#endif
+			beginWaitReset_();
+		}
+		else
+		{
+			beginSearchRomSendBit_();
+		}
+	}
+	else
+	{
+		#ifdef DEBUG_LOG
+		debug.SC_APPEND_STR("Leaving ROM search");
+		#endif
+		beginWaitReset_();
+	}
 }

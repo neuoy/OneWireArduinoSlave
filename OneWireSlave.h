@@ -42,7 +42,16 @@ private:
 	void beginWaitReset_();
 	void beginWaitCommand_();
 	void beginReceive_();
+
+	void beginReceiveBit_(void(*completeCallback)(bool bit, bool error));
+	void beginSendBit_(bool bit, void(*completeCallback)(bool error));
+
 	void beginSearchRom_();
+	void beginSearchRomSendBit_();
+	inline static void continueSearchRomHandler_(bool error) { inst_->continueSearchRom_(error); }
+	void continueSearchRom_(bool error);
+	inline static void searchRomOnBitReceivedHandler_(bool bit, bool error) { inst_->searchRomOnBitReceived_(bit, error); }
+	void searchRomOnBitReceived_(bool bit, bool error);
 
 	// interrupt handlers
 	inline static void waitResetHandler_() { inst_->waitReset_(); }
@@ -53,8 +62,16 @@ private:
 	void endPresence_();
 	inline static void receiveHandler_() { inst_->receive_(); }
 	void receive_();
-	inline static void receiveBitHandler_() { inst_->receiveBit_(); }
-	void receiveBit_();
+	inline static void readBitHandler_() { inst_->readBit_(); }
+	void readBit_();
+	inline static void onBitReceivedHandler_(bool bit, bool error) { inst_->onBitReceived_(bit, error); }
+	void onBitReceived_(bool bit, bool error);
+	inline static void sendBitOneHandler_() { inst_->sendBitOne_(); }
+	void sendBitOne_();
+	inline static void sendBitZeroHandler_() { inst_->sendBitZero_(); }
+	void sendBitZero_();
+	inline static void endSendBitZeroHandler_() { inst_->endSendBitZero_(); }
+	void endSendBitZero_();
 
 private:
 	static OneWireSlave* inst_;
@@ -65,11 +82,18 @@ private:
 	unsigned long resetStart_;
 	unsigned long lastReset_;
 
+	void(*receiveBitCallback_)(bool bit, bool error);
+	void(*bitSentCallback_)(bool error);
+
 	byte receivingByte_;
 	byte receivingBitPos_;
 	byte receiveTarget_;
 
 	bool ignoreNextEdge_;
+
+	byte searchRomBytePos_;
+	byte searchRomBitPos_;
+	bool searchRomInverse_;
 };
 
 #endif
