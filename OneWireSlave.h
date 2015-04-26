@@ -7,19 +7,19 @@
 class OneWireSlave
 {
 public:
-	///! Starts listening for the 1-wire master, on the specified pin, as a virtual slave device identified by the specified ROM (7 bytes, starting from the family code, CRC will be computed internally). Reset, Presence, SearchRom and MatchRom are handled automatically. The library will use the external interrupt on the specified pin (note that this is usually not possible with all pins, depending on the board), as well as one hardware timer. Blocking interrupts (either by disabling them explicitely with sei/cli, or by spending time in another interrupt) can lead to malfunction of the library, due to tight timing for some 1-wire operations.
+	//! Starts listening for the 1-wire master, on the specified pin, as a virtual slave device identified by the specified ROM (7 bytes, starting from the family code, CRC will be computed internally). Reset, Presence, SearchRom and MatchRom are handled automatically. The library will use the external interrupt on the specified pin (note that this is usually not possible with all pins, depending on the board), as well as one hardware timer. Blocking interrupts (either by disabling them explicitely with sei/cli, or by spending time in another interrupt) can lead to malfunction of the library, due to tight timing for some 1-wire operations.
 	void begin(byte* rom, byte pinNumber);
 
-	///! Stops all 1-wire activities, which frees hardware resources for other purposes.
+	//! Stops all 1-wire activities, which frees hardware resources for other purposes.
 	void end();
 
-	///! Pops one byte from the receive buffer, or returns false if no byte has been received.
+	//! Pops one byte from the receive buffer, or returns false if no byte has been received.
 	bool read(byte& b);
 
-	///! Sets (or replaces) a function to be called when at least one byte has been received. Callbacks are executed from interrupts and should be as short as possible.
+	//! Sets (or replaces) a function to be called when at least one byte has been received. Callbacks are executed from interrupts and should be as short as possible.
 	void setReceiveCallback(void(*callback)());
 
-	///! Enqueues the specified bytes in the send buffer. They will be sent in the background. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible.
+	//! Enqueues the specified bytes in the send buffer. They will be sent in the background. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible.
 	void write(byte* bytes, short numBytes, void(*complete)(bool error));
 
 private:
@@ -52,6 +52,13 @@ private:
 	static void continueSearchRom_(bool error);
 	static void searchRomOnBitReceived_(bool bit, bool error);
 
+	static void beginWriteBytes_(byte* data, short numBytes, void(*complete)(bool error));
+	static void beginReceiveBytes_(byte* buffer, short numBytes, void(*complete)(bool error));
+
+	static void noOpCallback_(bool error);
+	static void matchRomBytesReceived_(bool error);
+	static void notifyClientByteReceived_(bool error);
+
 	// interrupt handlers
 	static void waitReset_();
 	static void beginPresence_();
@@ -65,6 +72,7 @@ private:
 
 private:
 	static byte rom_[8];
+	static byte scratchpad_[8];
 	static Pin pin_;
 	static byte tccr1bEnable_;
 
@@ -81,6 +89,10 @@ private:
 	static byte searchRomBytePos_;
 	static byte searchRomBitPos_;
 	static bool searchRomInverse_;
+
+	static byte* receiveBytesBuffer_;
+	static short receiveBytesLength_;
+	static void(*receiveBytesCallback_)(bool error);
 };
 
 extern OneWireSlave OneWire;
