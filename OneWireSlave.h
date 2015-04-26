@@ -39,6 +39,9 @@ private:
 	static void beginReceiveBit_(void(*completeCallback)(bool bit, bool error));
 	static void beginSendBit_(bool bit, void(*completeCallback)(bool error));
 
+	static void beginResetDetection_();
+	static void cancelResetDetection_();
+
 	static void beginWaitReset_();
 	static void beginWaitCommand_();
 	static void beginReceive_();
@@ -58,6 +61,7 @@ private:
 	static void sendBitOne_();
 	static void sendBitZero_();
 	static void endSendBitZero_();
+	static void resetCheck_();
 
 private:
 	static byte rom_[8];

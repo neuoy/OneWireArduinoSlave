@@ -179,6 +179,108 @@ void OneWireSlave::releaseBus_()
 #endif
 }
 
+void OneWireSlave::beginResetDetection_()
+{
+	setTimerEvent_(ResetMinDuration - 50, &OneWireSlave::resetCheck_);
+	resetStart_ = micros() - 50;
+}
+
+void OneWireSlave::cancelResetDetection_()
+{
+	disableTimer_();
+	resetStart_ = (unsigned long)-1;
+}
+
+void OneWireSlave::resetCheck_()
+{
+	onEnterInterrupt_();
+	if (!pin_.read())
+	{
+		pin_.attachInterrupt(&OneWireSlave::waitReset_, CHANGE);
+		#ifdef DEBUG_LOG
+		debug.SC_APPEND_STR("Reset detected during another operation");
+		#endif
+	}
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::beginReceiveBit_(void(*completeCallback)(bool bit, bool error))
+{
+	receiveBitCallback_ = completeCallback;
+	pin_.attachInterrupt(&OneWireSlave::receive_, FALLING);
+}
+
+void OneWireSlave::receive_()
+{
+	onEnterInterrupt_();
+
+	pin_.detachInterrupt();
+	setTimerEvent_(ReadBitSamplingTime, &OneWireSlave::readBit_);
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::readBit_()
+{
+	onEnterInterrupt_();
+
+	bool bit = pin_.read();
+	if (bit)
+		cancelResetDetection_();
+	else
+		beginResetDetection_();
+	receiveBitCallback_(bit, false);
+	//dbgOutput.writeLow();
+	//dbgOutput.writeHigh();
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::beginSendBit_(bool bit, void(*completeCallback)(bool error))
+{
+	bitSentCallback_ = completeCallback;
+	if (bit)
+	{
+		pin_.attachInterrupt(&OneWireSlave::sendBitOne_, FALLING);
+	}
+	else
+	{
+		pin_.attachInterrupt(&OneWireSlave::sendBitZero_, FALLING);
+	}
+}
+
+void OneWireSlave::sendBitOne_()
+{
+	onEnterInterrupt_();
+
+	beginResetDetection_();
+	bitSentCallback_(false);
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::sendBitZero_()
+{
+	pullLow_(); // this must be executed first because the timing is very tight with some master devices
+
+	onEnterInterrupt_();
+
+	pin_.detachInterrupt();
+	setTimerEvent_(SendBitDuration, &OneWireSlave::endSendBitZero_);
+
+	onLeaveInterrupt_();
+}
+
+void OneWireSlave::endSendBitZero_()
+{
+	onEnterInterrupt_();
+
+	releaseBus_();
+	bitSentCallback_(false);
+
+	onLeaveInterrupt_();
+}
+
 void OneWireSlave::beginWaitReset_()
 {
 	disableTimer_();
@@ -255,78 +357,6 @@ void OneWireSlave::beginReceive_()
 	receivingByte_ = 0;
 	receivingBitPos_ = 0;
 	beginReceiveBit_(&OneWireSlave::onBitReceived_);
-}
-
-void OneWireSlave::beginReceiveBit_(void(*completeCallback)(bool bit, bool error))
-{
-	receiveBitCallback_ = completeCallback;
-	pin_.attachInterrupt(&OneWireSlave::receive_, FALLING);
-}
-
-void OneWireSlave::receive_()
-{
-	onEnterInterrupt_();
-
-	pin_.detachInterrupt();
-	setTimerEvent_(ReadBitSamplingTime, &OneWireSlave::readBit_);
-
-	onLeaveInterrupt_();
-}
-
-void OneWireSlave::beginSendBit_(bool bit, void(*completeCallback)(bool error))
-{
-	bitSentCallback_ = completeCallback;
-	if (bit)
-	{
-		pin_.attachInterrupt(&OneWireSlave::sendBitOne_, FALLING);
-	}
-	else
-	{
-		pin_.attachInterrupt(&OneWireSlave::sendBitZero_, FALLING);
-	}
-}
-
-void OneWireSlave::sendBitOne_()
-{
-	onEnterInterrupt_();
-
-	bitSentCallback_(false);
-
-	onLeaveInterrupt_();
-}
-
-void OneWireSlave::sendBitZero_()
-{
-	pullLow_(); // this must be executed first because the timing is very tight with some master devices
-
-	onEnterInterrupt_();
-
-	pin_.detachInterrupt();
-	setTimerEvent_(SendBitDuration, &OneWireSlave::endSendBitZero_);
-
-	onLeaveInterrupt_();
-}
-
-void OneWireSlave::endSendBitZero_()
-{
-	onEnterInterrupt_();
-
-	releaseBus_();
-	bitSentCallback_(false);
-
-	onLeaveInterrupt_();
-}
-
-void OneWireSlave::readBit_()
-{
-	onEnterInterrupt_();
-
-	bool bit = pin_.read();
-	receiveBitCallback_(bit, false);
-	//dbgOutput.writeLow();
-	//dbgOutput.writeHigh();
-
-	onLeaveInterrupt_();
 }
 
 void OneWireSlave::onBitReceived_(bool bit, bool error)
