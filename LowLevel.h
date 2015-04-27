@@ -71,8 +71,8 @@
 class Pin
 {
 private:
-	IO_REG_TYPE mask_;
 	volatile IO_REG_TYPE *reg_;
+	IO_REG_TYPE mask_;
 	byte interruptNumber_;
 
 public:

@@ -1,11 +1,20 @@
 #include "OneWireSlave.h"
 
 #define DEBUG_LOG
+#define ERROR_MESSAGES
 
 #ifdef DEBUG_LOG
 #include "SerialChannel.h"
 extern SerialChannel debug;
 Pin dbgOutput(3);
+#else
+#undef ERROR_MESSAGES
+#endif
+
+#ifdef ERROR_MESSAGES
+#define ERROR(msg) error_(msg)
+#else
+#define ERROR(msg) error_(0)
 #endif
 
 namespace
@@ -37,18 +46,21 @@ unsigned long OneWireSlave::lastReset_;
 
 void(*OneWireSlave::receiveBitCallback_)(bool bit, bool error);
 void(*OneWireSlave::bitSentCallback_)(bool error);
+void(*OneWireSlave::clientReceiveCallback_)(ReceiveEvent evt, byte data);
 
 byte OneWireSlave::receivingByte_;
-byte OneWireSlave::receivingBitPos_;
-byte OneWireSlave::receiveTarget_;
 
 byte OneWireSlave::searchRomBytePos_;
 byte OneWireSlave::searchRomBitPos_;
 bool OneWireSlave::searchRomInverse_;
 
-byte* OneWireSlave::receiveBytesBuffer_;
-short OneWireSlave::receiveBytesLength_;
+byte* OneWireSlave::buffer_;
+short OneWireSlave::bufferLength_;
+byte OneWireSlave::bufferBitPos_;
+short OneWireSlave::bufferPos_;
 void(*OneWireSlave::receiveBytesCallback_)(bool error);
+void(*OneWireSlave::sendBytesCallback_)(bool error);
+
 
 ISR(TIMER1_COMPA_vect) // timer1 interrupt
 {
@@ -101,19 +113,11 @@ void OneWireSlave::end()
 	sei();
 }
 
-bool OneWireSlave::read(byte& b)
-{
-	return false;
-}
-
-void OneWireSlave::setReceiveCallback(void(*callback)())
-{
-
-}
-
 void OneWireSlave::write(byte* bytes, short numBytes, void(*complete)(bool error))
 {
-
+	cli();
+	beginWriteBytes_(bytes, numBytes, complete == 0 ? noOpCallback_ : complete);
+	sei();
 }
 
 byte OneWireSlave::crc8_(byte* data, short numBytes)
@@ -151,18 +155,25 @@ void OneWireSlave::disableTimer_()
 
 void OneWireSlave::onEnterInterrupt_()
 {
+	#ifdef DEBUG_LOG
 	dbgOutput.writeLow();
+	#endif
 }
 
 void OneWireSlave::onLeaveInterrupt_()
 {
+	#ifdef DEBUG_LOG
 	dbgOutput.writeHigh();
+	#endif
 }
 
 void OneWireSlave::error_(const char* message)
 {
 #ifdef DEBUG_LOG
-	debug.append(message);
+	if (message == 0)
+		debug.append("unspecified error");
+	else
+		debug.append(message);
 #endif
 	beginWaitReset_();
 }
@@ -312,7 +323,7 @@ void OneWireSlave::waitReset_()
 		{
 			if (resetDuration > ResetMaxDuration)
 			{
-				error_("Reset too long");
+				ERROR("Reset too long");
 				onLeaveInterrupt_();
 				return;
 			}
@@ -320,6 +331,8 @@ void OneWireSlave::waitReset_()
 			lastReset_ = now;
 			pin_.detachInterrupt();
 			setTimerEvent_(PresenceWaitDuration - (micros() - now), &OneWireSlave::beginPresence_);
+			if (clientReceiveCallback_ != 0)
+				clientReceiveCallback_(RE_Reset, 0);
 		}
 	}
 	else
@@ -353,14 +366,14 @@ void OneWireSlave::endPresence_()
 
 void OneWireSlave::beginWaitCommand_()
 {
-	receiveTarget_ = ReceiveCommand;
+	bufferPos_ = ReceiveCommand;
 	beginReceive_();
 }
 
 void OneWireSlave::beginReceive_()
 {
 	receivingByte_ = 0;
-	receivingBitPos_ = 0;
+	bufferBitPos_ = 0;
 	beginReceiveBit_(&OneWireSlave::onBitReceived_);
 }
 
@@ -368,23 +381,23 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 {
 	if (error)
 	{
-		error_("Invalid bit");
-		if (receiveTarget_ >= 0)
+		ERROR("Invalid bit");
+		if (bufferPos_ >= 0)
 			receiveBytesCallback_(true);
 		return;
 	}
 
-	receivingByte_ |= ((bit ? 1 : 0) << receivingBitPos_);
-	++receivingBitPos_;
+	receivingByte_ |= ((bit ? 1 : 0) << bufferBitPos_);
+	++bufferBitPos_;
 
-	if (receivingBitPos_ == 8)
+	if (bufferBitPos_ == 8)
 	{
 		#ifdef DEBUG_LOG
 		debug.SC_APPEND_STR_INT("received byte", (long)receivingByte_);
 		#endif
-		if (receiveTarget_ == ReceiveCommand)
+		if (bufferPos_ == ReceiveCommand)
 		{
-			receiveTarget_ = 0;
+			bufferPos_ = 0;
 			switch (receivingByte_)
 			{
 			case 0xF0: // SEARCH ROM
@@ -402,16 +415,16 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 				matchRomBytesReceived_(false);
 				return;
 			default:
-				error_("Unknown command");
+				ERROR("Unknown command");
 				return;
 			}
 		}
 		else
 		{
-			receiveBytesBuffer_[receiveTarget_++] = receivingByte_;
+			buffer_[bufferPos_++] = receivingByte_;
 			receivingByte_ = 0;
-			receivingBitPos_ = 0;
-			if (receiveTarget_ == receiveBytesLength_)
+			bufferBitPos_ = 0;
+			if (bufferPos_ == bufferLength_)
 			{
 				beginWaitReset_();
 				receiveBytesCallback_(false);
@@ -445,7 +458,7 @@ void OneWireSlave::continueSearchRom_(bool error)
 {
 	if (error)
 	{
-		error_("Failed to send bit");
+		ERROR("Failed to send bit");
 		return;
 	}
 
@@ -464,7 +477,7 @@ void OneWireSlave::searchRomOnBitReceived_(bool bit, bool error)
 {
 	if (error)
 	{
-		error_("Bit read error during ROM search");
+		ERROR("Bit read error during ROM search");
 		return;
 	}
 
@@ -503,15 +516,48 @@ void OneWireSlave::searchRomOnBitReceived_(bool bit, bool error)
 
 void OneWireSlave::beginWriteBytes_(byte* data, short numBytes, void(*complete)(bool error))
 {
-	// TODO
-	beginWaitReset_();
+	buffer_ = data;
+	bufferLength_ = numBytes;
+	bufferPos_ = 0;
+	bufferBitPos_ = 0;
+	sendBytesCallback_ = complete;
+
+	bool bit = bitRead(buffer_[0], 0);
+	beginSendBit_(bit, &OneWireSlave::bitSent_);
+}
+
+void OneWireSlave::bitSent_(bool error)
+{
+	if (error)
+	{
+		ERROR("error sending a bit");
+		sendBytesCallback_(true);
+		return;
+	}
+
+	++bufferBitPos_;
+	if (bufferBitPos_ == 8)
+	{
+		bufferBitPos_ = 0;
+		++bufferPos_;
+	}
+
+	if (bufferPos_ == bufferLength_)
+	{
+		beginWaitReset_();
+		sendBytesCallback_(false);
+		return;
+	}
+
+	bool bit = bitRead(buffer_[bufferPos_], bufferBitPos_);
+	beginSendBit_(bit, &OneWireSlave::bitSent_);
 }
 
 void OneWireSlave::beginReceiveBytes_(byte* buffer, short numBytes, void(*complete)(bool error))
 {
-	receiveBytesBuffer_ = buffer;
-	receiveBytesLength_ = numBytes;
-	receiveTarget_ = 0;
+	buffer_ = buffer;
+	bufferLength_ = numBytes;
+	bufferPos_ = 0;
 	receiveBytesCallback_ = complete;
 	beginReceive_();
 }
@@ -519,14 +565,14 @@ void OneWireSlave::beginReceiveBytes_(byte* buffer, short numBytes, void(*comple
 void OneWireSlave::noOpCallback_(bool error)
 {
 	if (error)
-		error_("error during an internal 1-wire operation");
+		ERROR("error during an internal 1-wire operation");
 }
 
 void OneWireSlave::matchRomBytesReceived_(bool error)
 {
 	if (error)
 	{
-		error_("error receiving match rom bytes");
+		ERROR("error receiving match rom bytes");
 		return;
 	}
 
@@ -550,11 +596,13 @@ void OneWireSlave::notifyClientByteReceived_(bool error)
 {
 	if (error)
 	{
-		error_("error receiving device specific bytes");
+		if (clientReceiveCallback_ != 0)
+			clientReceiveCallback_(RE_Error, 0);
+		ERROR("error receiving custom bytes");
 		return;
 	}
 
-	beginWaitReset_();
-
-	// TODO
+	beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
+	if (clientReceiveCallback_ != 0)
+		clientReceiveCallback_(RE_Byte, scratchpad_[0]);
 }
