@@ -1,6 +1,9 @@
 #ifndef _SerialChannel_h_
 #define _SerialChannel_h_
 
+//#define ENABLE_SERIAL_CHANNEL
+
+#ifdef ENABLE_SERIAL_CHANNEL
 #define SC_APPEND_STR(str) append((byte*)str, sizeof(str)-1)
 #define SC_APPEND_STR_INT(str, arg0) appendInt(str, sizeof(str)-1, arg0)
 
@@ -55,6 +58,7 @@ private:
     static void writeShort(short num);
     static void writeULong(unsigned long num);
 };
+#endif // ENABLE_SERIAL_CHANNEL
 
 #endif
 

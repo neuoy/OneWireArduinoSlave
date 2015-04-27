@@ -1,6 +1,6 @@
 #include "OneWireSlave.h"
 
-#define DEBUG_LOG
+//#define DEBUG_LOG
 #define ERROR_MESSAGES
 
 #ifdef DEBUG_LOG

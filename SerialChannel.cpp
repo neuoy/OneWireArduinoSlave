@@ -1,6 +1,8 @@
 #include "Arduino.h"
 #include "SerialChannel.h"
 
+#ifdef ENABLE_SERIAL_CHANNEL
+
 byte SerialChannel::nextId = 1;
 SerialChannel* SerialChannel::first = 0;
 
@@ -165,3 +167,4 @@ void SerialChannel::handleConnection()
     }
 }
 
+#endif //ENABLE_SERIAL_CHANNEL
