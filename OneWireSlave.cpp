@@ -1,15 +1,7 @@
 #include "OneWireSlave.h"
 
-//#define DEBUG_LOG
-#define ERROR_MESSAGES
-
-#ifdef DEBUG_LOG
-#include "SerialChannel.h"
-extern SerialChannel debug;
-Pin dbgOutput(3);
-#else
-#undef ERROR_MESSAGES
-#endif
+// uncomment this line to enable sending messages along with errors (but takes more program memory)
+//#define ERROR_MESSAGES
 
 #ifdef ERROR_MESSAGES
 #define ERROR(msg) error_(msg)
@@ -77,13 +69,9 @@ void OneWireSlave::begin(byte* rom, byte pinNumber)
 	lastReset_ = 0;
 
 	memcpy(rom_, rom, 7);
-	rom_[7] = crc8_(rom_, 7);
+	rom_[7] = crc8(rom_, 7);
 
-	#ifdef DEBUG_LOG
-	debug.append("Enabling 1-wire library");
-	dbgOutput.outputMode();
-	dbgOutput.writeHigh();
-	#endif
+	// log("Enabling 1-wire library")
 
 	cli(); // disable interrupts
 	pin_.inputMode();
@@ -120,7 +108,7 @@ void OneWireSlave::write(byte* bytes, short numBytes, void(*complete)(bool error
 	sei();
 }
 
-byte OneWireSlave::crc8_(byte* data, short numBytes)
+byte OneWireSlave::crc8(byte* data, short numBytes)
 {
 	byte crc = 0;
 
@@ -182,17 +170,11 @@ void OneWireSlave::pullLow_()
 {
 	pin_.outputMode();
 	pin_.writeLow();
-#ifdef DEBUG_LOG
-	//dbgOutput.writeLow();
-#endif
 }
 
 void OneWireSlave::releaseBus_()
 {
 	pin_.inputMode();
-#ifdef DEBUG_LOG
-	//dbgOutput.writeHigh();
-#endif
 }
 
 void OneWireSlave::beginResetDetection_()
@@ -213,9 +195,7 @@ void OneWireSlave::resetCheck_()
 	if (!pin_.read())
 	{
 		pin_.attachInterrupt(&OneWireSlave::waitReset_, CHANGE);
-		#ifdef DEBUG_LOG
-		debug.SC_APPEND_STR("Reset detected during another operation");
-		#endif
+		// log("Reset detected during another operation");
 	}
 	onLeaveInterrupt_();
 }
@@ -344,22 +324,13 @@ void OneWireSlave::waitReset_()
 
 void OneWireSlave::beginPresence_()
 {
-	unsigned long now = micros();
 	pullLow_();
 	setTimerEvent_(PresenceDuration, &OneWireSlave::endPresence_);
-	#ifdef DEBUG_LOG
-	debug.SC_APPEND_STR_TIME("reset", lastReset_);
-	debug.SC_APPEND_STR_TIME("beginPresence", now);
-	#endif
 }
 
 void OneWireSlave::endPresence_()
 {
-	unsigned long now = micros();
 	releaseBus_();
-	#ifdef DEBUG_LOG
-	debug.SC_APPEND_STR_TIME("endPresence", now);
-	#endif
 
 	beginWaitCommand_();
 }
@@ -392,9 +363,8 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 
 	if (bufferBitPos_ == 8)
 	{
-		#ifdef DEBUG_LOG
-		debug.SC_APPEND_STR_INT("received byte", (long)receivingByte_);
-		#endif
+		// log("received byte", (long)receivingByte_);
+
 		if (bufferPos_ == ReceiveCommand)
 		{
 			bufferPos_ = 0;
@@ -495,9 +465,8 @@ void OneWireSlave::searchRomOnBitReceived_(bool bit, bool error)
 
 		if (searchRomBytePos_ == 8)
 		{
-			#ifdef DEBUG_LOG
-			debug.SC_APPEND_STR("ROM sent entirely");
-			#endif
+			// log("ROM sent entirely");
+
 			beginWaitReset_();
 		}
 		else
@@ -507,9 +476,7 @@ void OneWireSlave::searchRomOnBitReceived_(bool bit, bool error)
 	}
 	else
 	{
-		#ifdef DEBUG_LOG
-		debug.SC_APPEND_STR("Leaving ROM search");
-		#endif
+		// log("Leaving ROM search");
 		beginWaitReset_();
 	}
 }
@@ -578,16 +545,14 @@ void OneWireSlave::matchRomBytesReceived_(bool error)
 
 	if (memcmp(rom_, scratchpad_, 8) == 0)
 	{
-		#ifdef DEBUG_LOG
-		debug.SC_APPEND_STR("ROM matched");
-		#endif
+		// log("ROM matched");
+
 		beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
 	}
 	else
 	{
-		#ifdef DEBUG_LOG
-		debug.SC_APPEND_STR("ROM not matched");
-		#endif
+		// log("ROM not matched");
+
 		beginWaitReset_();
 	}
 }

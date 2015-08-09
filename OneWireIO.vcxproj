@@ -13,6 +13,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3B500971-1570-460F-81C3-22AC3B7764B9}</ProjectGuid>
     <RootNamespace>OneWireIO</RootNamespace>
+    <ProjectName>OneWireIO_Demo</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -83,7 +84,7 @@ exit /B 1
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="OneWireIO.ino">
+    <CustomBuild Include="OneWireIO_Demo.ino">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">if exist $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf del $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf
@@ -99,14 +100,10 @@ D:\Outils\Arduino\arduino.exe --pref build.path=$(ProjectDir)$(IntDir) --upload 
     <ClCompile Include="OneWireSlave.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="SerialChannel.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LowLevel.h" />
     <ClInclude Include="OneWireSlave.h" />
-    <ClInclude Include="SerialChannel.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

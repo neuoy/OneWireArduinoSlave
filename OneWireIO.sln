@@ -5,11 +5,6 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OneWireIO", "OneWireIO.vcxproj", "{3B500971-1570-460F-81C3-22AC3B7764B9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerialMonitor", "SerialMonitor\SerialMonitor\SerialMonitor.csproj", "{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}"
-	ProjectSection(ProjectDependencies) = postProject
-		{3B500971-1570-460F-81C3-22AC3B7764B9} = {3B500971-1570-460F-81C3-22AC3B7764B9}
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,16 +25,6 @@ Global
 		{3B500971-1570-460F-81C3-22AC3B7764B9}.Release|Mixed Platforms.Build.0 = Release|Win32
 		{3B500971-1570-460F-81C3-22AC3B7764B9}.Release|Win32.ActiveCfg = Release|Win32
 		{3B500971-1570-460F-81C3-22AC3B7764B9}.Release|Win32.Build.0 = Release|Win32
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Debug|Win32.ActiveCfg = Debug|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Release|Mixed Platforms.Build.0 = Release|Any CPU
-		{97704F53-6CA1-4155-9E8F-AEBFEEC20A8B}.Release|Win32.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

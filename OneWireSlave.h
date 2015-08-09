@@ -26,9 +26,9 @@ public:
 	//! Enqueues the specified bytes in the send buffer. They will be sent in the background. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible.
 	void write(byte* bytes, short numBytes, void(*complete)(bool error));
 
-private:
-	static byte crc8_(byte* data, short numBytes);
+	static byte crc8(byte* data, short numBytes);
 
+private:
 	static void setTimerEvent_(short delayMicroSeconds, void(*handler)());
 	static void disableTimer_();
 
