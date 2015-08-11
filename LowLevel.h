@@ -74,16 +74,19 @@ private:
 	volatile IO_REG_TYPE *reg_;
 	IO_REG_TYPE mask_;
 	byte interruptNumber_;
+	byte pinNumber_;
 
 public:
 	Pin()
 		: mask_(0)
 		, reg_(0)
 		, interruptNumber_((byte)-1)
+		, pinNumber_(255)
 	{ }
 
 	Pin(uint8_t pin)
 	{
+		pinNumber_ = pin;
 		mask_ = PIN_TO_BITMASK(pin);
 		reg_ = PIN_TO_BASEREG(pin);
 		
@@ -94,6 +97,8 @@ public:
 		default: interruptNumber_ = (byte)-1;
 		}
 	}
+
+	inline byte getPinNumber() { return pinNumber_; }
 
 	inline void inputMode() { DIRECT_MODE_INPUT(reg_, mask_); }
 	inline void outputMode() { DIRECT_MODE_OUTPUT(reg_, mask_); }

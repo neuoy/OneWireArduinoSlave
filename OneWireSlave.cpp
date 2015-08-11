@@ -46,7 +46,8 @@ byte OneWireSlave::searchRomBytePos_;
 byte OneWireSlave::searchRomBitPos_;
 bool OneWireSlave::searchRomInverse_;
 
-byte* OneWireSlave::buffer_;
+const byte* OneWireSlave::sendBuffer_;
+byte* OneWireSlave::recvBuffer_;
 short OneWireSlave::bufferLength_;
 byte OneWireSlave::bufferBitPos_;
 short OneWireSlave::bufferPos_;
@@ -62,7 +63,7 @@ ISR(TIMER1_COMPA_vect) // timer1 interrupt
 	event();
 }
 
-void OneWireSlave::begin(byte* rom, byte pinNumber)
+void OneWireSlave::begin(const byte* rom, byte pinNumber)
 {
 	pin_ = Pin(pinNumber);
 	resetStart_ = (unsigned long)-1;
@@ -99,14 +100,14 @@ void OneWireSlave::end()
 	sei();
 }
 
-void OneWireSlave::write(byte* bytes, short numBytes, void(*complete)(bool error))
+void OneWireSlave::write(const byte* bytes, short numBytes, void(*complete)(bool error))
 {
 	cli();
 	beginWriteBytes_(bytes, numBytes, complete == 0 ? noOpCallback_ : complete);
 	sei();
 }
 
-byte OneWireSlave::crc8(byte* data, short numBytes)
+byte OneWireSlave::crc8(const byte* data, short numBytes)
 {
 	byte crc = 0;
 
@@ -377,7 +378,7 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 		}
 		else
 		{
-			buffer_[bufferPos_++] = receivingByte_;
+			recvBuffer_[bufferPos_++] = receivingByte_;
 			receivingByte_ = 0;
 			bufferBitPos_ = 0;
 			if (bufferPos_ == bufferLength_)
@@ -467,15 +468,15 @@ void OneWireSlave::searchRomOnBitReceived_(bool bit, bool error)
 	}
 }
 
-void OneWireSlave::beginWriteBytes_(byte* data, short numBytes, void(*complete)(bool error))
+void OneWireSlave::beginWriteBytes_(const byte* data, short numBytes, void(*complete)(bool error))
 {
-	buffer_ = data;
+	sendBuffer_ = data;
 	bufferLength_ = numBytes;
 	bufferPos_ = 0;
 	bufferBitPos_ = 0;
 	sendBytesCallback_ = complete;
 
-	bool bit = bitRead(buffer_[0], 0);
+	bool bit = bitRead(sendBuffer_[0], 0);
 	beginSendBit_(bit, &OneWireSlave::bitSent_);
 }
 
@@ -502,13 +503,13 @@ void OneWireSlave::bitSent_(bool error)
 		return;
 	}
 
-	bool bit = bitRead(buffer_[bufferPos_], bufferBitPos_);
+	bool bit = bitRead(sendBuffer_[bufferPos_], bufferBitPos_);
 	beginSendBit_(bit, &OneWireSlave::bitSent_);
 }
 
 void OneWireSlave::beginReceiveBytes_(byte* buffer, short numBytes, void(*complete)(bool error))
 {
-	buffer_ = buffer;
+	recvBuffer_ = buffer;
 	bufferLength_ = numBytes;
 	bufferPos_ = 0;
 	receiveBytesCallback_ = complete;

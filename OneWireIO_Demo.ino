@@ -2,18 +2,16 @@
 #include "LowLevel.h"
 #include "OneWireSlave.h"
 
-#define LEDPin    13
-
 // This is the pin that will be used for one-wire data (depending on your arduino model, you are limited to a few choices, because some pins don't have complete interrupt support)
 // On Arduino Uno, you can use pin 2 or pin 3
-#define OWPin 2
+Pin oneWireData(2);
 
-Pin led(LEDPin);
+Pin led(13);
 
 // This is the ROM the arduino will respond to, make sure it doesn't conflict with another device
-byte owROM[7] = { 0xE2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
+const byte owROM[7] = { 0xE2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
 
-byte acknowledge = 0x42;
+const byte acknowledge = 0x42;
 
 // This sample implements a simple protocol : sending match ROM, then the ROM, then 0x01 will turn the arduino light on. Sending 0x02 will turn it off. In each case, the byte 0x42 is sent as acknowledgement.
 const byte CMD_TurnOn = 0x01;
@@ -29,7 +27,7 @@ void setup()
 
 	// Setup the OneWire library
 	OneWire.setReceiveCallback(&owReceive);
-	OneWire.begin(owROM, OWPin);
+	OneWire.begin(owROM, oneWireData.getPinNumber());
 }
 
 void loop()
