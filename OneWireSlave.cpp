@@ -90,9 +90,7 @@ void OneWireSlave::begin(byte* rom, byte pinNumber)
 
 void OneWireSlave::end()
 {
-	#ifdef DEBUG_LOG
-	debug.append("Disabling 1-wire library");
-	#endif
+	// log("Disabling 1-wire library");
 
 	cli();
 	disableTimer_();
@@ -143,26 +141,14 @@ void OneWireSlave::disableTimer_()
 
 void OneWireSlave::onEnterInterrupt_()
 {
-	#ifdef DEBUG_LOG
-	dbgOutput.writeLow();
-	#endif
 }
 
 void OneWireSlave::onLeaveInterrupt_()
 {
-	#ifdef DEBUG_LOG
-	dbgOutput.writeHigh();
-	#endif
 }
 
 void OneWireSlave::error_(const char* message)
 {
-#ifdef DEBUG_LOG
-	if (message == 0)
-		debug.append("unspecified error");
-	else
-		debug.append(message);
-#endif
 	beginWaitReset_();
 }
 
