@@ -26,7 +26,7 @@ namespace
 	void(*timerEvent)() = 0;
 }
 
-OneWireSlave OneWire;
+OneWireSlave OWSlave;
 
 byte OneWireSlave::rom_[8];
 byte OneWireSlave::scratchpad_[8];

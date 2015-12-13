@@ -13,7 +13,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3B500971-1570-460F-81C3-22AC3B7764B9}</ProjectGuid>
     <RootNamespace>OneWireIO</RootNamespace>
-    <ProjectName>OneWireIO_Demo</ProjectName>
+    <ProjectName>OneWireIO</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -45,14 +45,14 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>D:\Outils\Arduino\hardware\arduino\avr\cores\arduino;D:\Outils\Arduino\hardware\tools\avr\avr\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Outils\Arduino\hardware\arduino\avr\cores\arduino;D:\Outils\Arduino\hardware\tools\avr\avr\include;C:\Program Files %28x86%29\Arduino\hardware\arduino\avr\cores\arduino;C:\Program Files %28x86%29\Arduino\hardware\tools\avr\avr\include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);ARDUINO=160;__AVR__;UBRRH;__AVR_ATmega328__</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>if exist $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf (
+      <Command>if exist $(ProjectDir)$(IntDir)$(ProjectName).ino.elf (
 echo Elf generated
 ) else (
 echo no output
@@ -61,12 +61,8 @@ exit /B 1
     </PostBuildEvent>
     <PostBuildEvent />
     <CustomBuild>
-      <Command>if exist $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf (
-echo Elf generated
-) else (
-echo no output
-exit /B 1
-)</Command>
+      <Command>
+      </Command>
     </CustomBuild>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -84,11 +80,11 @@ exit /B 1
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="OneWireIO_Demo.ino">
+    <CustomBuild Include="OneWireIO.ino">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">if exist $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf del $(ProjectDir)$(IntDir)$(ProjectName).cpp.elf
-D:\Outils\Arduino\arduino.exe --pref build.path=$(ProjectDir)$(IntDir) --upload %(FullPath)
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">if exist $(ProjectDir)$(IntDir)$(ProjectName).ino.elf del $(ProjectDir)$(IntDir)$(ProjectName).ino.elf
+"C:\Program Files (x86)\Arduino\arduino.exe" --upload --pref build.path=$(ProjectDir)$(Configuration) %(FullPath) | more
 </Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">always_build_$(ProjectConfiguration).dummy</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

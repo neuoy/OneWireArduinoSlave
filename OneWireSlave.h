@@ -104,6 +104,6 @@ private:
 	static void(*clientReceiveCallback_)(ReceiveEvent evt, byte data);
 };
 
-extern OneWireSlave OneWire;
+extern OneWireSlave OWSlave;
 
 #endif

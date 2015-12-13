@@ -26,8 +26,8 @@ void setup()
 	led.writeLow();
 
 	// Setup the OneWire library
-	OneWire.setReceiveCallback(&owReceive);
-	OneWire.begin(owROM, oneWireData.getPinNumber());
+	OWSlave.setReceiveCallback(&owReceive);
+	OWSlave.begin(owROM, oneWireData.getPinNumber());
 }
 
 void loop()
@@ -63,7 +63,7 @@ void owReceive(OneWireSlave::ReceiveEvent evt, byte data)
 		// in this simple example we just reply with one byte to say we've processed the command
 		// a real application should have a CRC system to ensure messages are not corrupt, for both directions
 		// you can use the static OneWireSlave::crc8 method to add CRC checks in your communication protocol (it conforms to standard one-wire CRC checks, that is used to compute the ROM last byte for example)
-		OneWire.write(&acknowledge, 1, NULL);
+		OWSlave.write(&acknowledge, 1, NULL);
 
 		break;
 	
