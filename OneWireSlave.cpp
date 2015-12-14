@@ -107,6 +107,38 @@ void OneWireSlave::write(const byte* bytes, short numBytes, void(*complete)(bool
 	sei();
 }
 
+void OneWireSlave::writeBit(bool value, bool repeat, void(*bitSent)(bool))
+{
+	cli();
+	singleBit_ = value;
+	singleBitRepeat_ = repeat;
+	singleBitSentCallback_ = bitSent;
+	beginSendBit_(value, &OneWireSlave::onSingleBitSent_);
+	sei();
+}
+
+void OneWireSlave::onSingleBitSent_(bool error)
+{
+	if (!error && singleBitRepeat_)
+	{
+		beginSendBit_(singleBit_, &OneWireSlave::onSingleBitSent_);
+	}
+	else
+	{
+		beginResetDetection_();
+	}
+
+	if (singleBitSentCallback_ != 0)
+	{
+		singleBitSentCallback_(error);
+	}
+}
+
+void OneWireSlave::stopWrite()
+{
+	write(0, 0, 0);
+}
+
 byte OneWireSlave::crc8(const byte* data, short numBytes)
 {
 	byte crc = 0;
@@ -476,8 +508,15 @@ void OneWireSlave::beginWriteBytes_(const byte* data, short numBytes, void(*comp
 	bufferBitPos_ = 0;
 	sendBytesCallback_ = complete;
 
-	bool bit = bitRead(sendBuffer_[0], 0);
-	beginSendBit_(bit, &OneWireSlave::bitSent_);
+	if (sendBuffer_ != 0 && bufferLength_ > 0)
+	{
+		bool bit = bitRead(sendBuffer_[0], 0);
+		beginSendBit_(bit, &OneWireSlave::bitSent_);
+	}
+	else
+	{
+		beginResetDetection_();
+	}
 }
 
 void OneWireSlave::bitSent_(bool error)

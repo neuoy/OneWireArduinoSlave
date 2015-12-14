@@ -23,8 +23,14 @@ public:
 	//! Sets (or replaces) a function to be called when something is received. The callback is executed from interrupts and should be as short as possible. Failure to return quickly can prevent the library from correctly reading the next byte.
 	void setReceiveCallback(void(*callback)(ReceiveEvent evt, byte data)) { clientReceiveCallback_ = callback; }
 
-	//! Enqueues the specified bytes in the send buffer. They will be sent in the background. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible.
+	//! Enqueues the specified bytes in the send buffer. They will be sent in the background. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible. If bytes is null or numBytes is 0, nothing is sent, which is equivalent to calling stopWrite. In any case, calling the write function will cancel the previous write operation if it didn't complete yet.
 	void write(const byte* bytes, short numBytes, void(*complete)(bool error));
+
+	//! Sets a bit that will be sent next time the master asks for one. Optionnaly, the repeat parameter can be set to true to continue sending the same bit each time. In both cases, the send operation can be canceled by calling stopWrite.
+	void writeBit(bool value, bool repeat = false, void(*bitSent)(bool error) = 0);
+
+	//! Cancels any pending write operation, started by writeBit or write. If this function is called before the master asked for a bit, then nothing is sent to the master.
+	void stopWrite();
 
 	static byte crc8(const byte* data, short numBytes);
 
@@ -100,6 +106,11 @@ private:
 	static byte bufferBitPos_;
 	static void(*receiveBytesCallback_)(bool error);
 	static void(*sendBytesCallback_)(bool error);
+
+	static bool singleBit_;
+	static bool singleBitRepeat_;
+	static void (*singleBitSentCallback_)(bool error);
+	static void onSingleBitSent_(bool error);
 
 	static void(*clientReceiveCallback_)(ReceiveEvent evt, byte data);
 };
