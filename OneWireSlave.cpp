@@ -39,6 +39,7 @@ unsigned long OneWireSlave::lastReset_;
 void(*OneWireSlave::receiveBitCallback_)(bool bit, bool error);
 void(*OneWireSlave::bitSentCallback_)(bool error);
 void(*OneWireSlave::clientReceiveCallback_)(ReceiveEvent evt, byte data);
+void(*OneWireSlave::clientReceiveBitCallback_)(bool bit);
 
 byte OneWireSlave::receivingByte_;
 
@@ -53,6 +54,10 @@ byte OneWireSlave::bufferBitPos_;
 short OneWireSlave::bufferPos_;
 void(*OneWireSlave::receiveBytesCallback_)(bool error);
 void(*OneWireSlave::sendBytesCallback_)(bool error);
+
+bool OneWireSlave::singleBit_;
+bool OneWireSlave::singleBitRepeat_;
+void(*OneWireSlave::singleBitSentCallback_)(bool error);
 
 
 ISR(TIMER1_COMPA_vect) // timer1 interrupt
@@ -71,6 +76,8 @@ void OneWireSlave::begin(const byte* rom, byte pinNumber)
 
 	memcpy(rom_, rom, 7);
 	rom_[7] = crc8(rom_, 7);
+
+	clientReceiveBitCallback_ = 0;
 
 	// log("Enabling 1-wire library")
 
@@ -125,7 +132,7 @@ void OneWireSlave::onSingleBitSent_(bool error)
 	}
 	else
 	{
-		beginResetDetection_();
+		beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
 	}
 
 	if (singleBitSentCallback_ != 0)
@@ -380,6 +387,9 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 	receivingByte_ |= ((bit ? 1 : 0) << bufferBitPos_);
 	++bufferBitPos_;
 
+	if (clientReceiveBitCallback_ != 0 && bufferPos_ != ReceiveCommand)
+		clientReceiveBitCallback_(bit);
+
 	if (bufferBitPos_ == 8)
 	{
 		// log("received byte", (long)receivingByte_);
@@ -515,7 +525,7 @@ void OneWireSlave::beginWriteBytes_(const byte* data, short numBytes, void(*comp
 	}
 	else
 	{
-		beginResetDetection_();
+		beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
 	}
 }
 

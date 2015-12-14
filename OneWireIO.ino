@@ -18,7 +18,6 @@ const byte DS18B20_WRITE_SCRATCHPAD = 0x4E;
 
 // TODO:
 // - handle configuration (resolution, alarms)
-// - send 0 bits while conversion is in progress, 1 bits when it's done (until reset)
 
 enum DeviceState
 {
@@ -73,6 +72,7 @@ void loop()
 		cli();
 		memcpy((void*)scratchpad, data, 9);
 		state = DS_TemperatureConverted;
+		OWSlave.writeBit(1, true); // now that conversion is finished, start sending ones until reset
 		sei();
 	}
 }
@@ -90,6 +90,7 @@ void owReceive(OneWireSlave::ReceiveEvent evt, byte data)
 			case DS18B20_START_CONVERSION:
 				state = DS_ConvertingTemperature;
 				conversionStartTime = millis();
+				OWSlave.writeBit(0, true); // send zeros as long as the conversion is not finished
 				break;
 
 			case DS18B20_READ_SCRATCHPAD:
