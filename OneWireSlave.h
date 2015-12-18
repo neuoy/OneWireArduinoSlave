@@ -26,8 +26,11 @@ public:
 	//! Sets (or replaces) a function to be called when a bit is received. The byte reception callback is called after that if the received bit was the last of a byte. The callback is executed from interrupts and should be as short as possible. Failure to return quickly can prevent the library from correctly reading the next bit.
 	void setReceiveBitCallback(void(*callback)(bool bit)) { clientReceiveBitCallback_ = callback; }
 
-	//! Enqueues the specified bytes in the send buffer. They will be sent in the background. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible. If bytes is null or numBytes is 0, nothing is sent, which is equivalent to calling stopWrite. In any case, calling the write function will cancel the previous write operation if it didn't complete yet.
-	void write(const byte* bytes, short numBytes, void(*complete)(bool error));
+	//! Writes the specified bytes synchronously. This function blocks until the write operation has finished. Do not call from an interrupt handler! Returns true in case of success, false if an error occured.
+	bool write(const byte* bytes, short numBytes);
+
+	//! Starts sending the specified bytes. They will be sent in the background, and the buffer must remain valid and unchanged until the write operation has finished or is cancelled. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible. If bytes is null or numBytes is 0, nothing is sent, which is equivalent to calling stopWrite. In any case, calling the write function will cancel the previous write operation if it didn't complete yet.
+	void beginWrite(const byte* bytes, short numBytes, void(*complete)(bool error));
 
 	//! Sets a bit that will be sent next time the master asks for one. Optionnaly, the repeat parameter can be set to true to continue sending the same bit each time. In both cases, the send operation can be canceled by calling stopWrite.
 	void writeBit(bool value, bool repeat = false, void(*bitSent)(bool error) = 0);
@@ -71,6 +74,9 @@ private:
 	static void beginWriteBytes_(const byte* data, short numBytes, void(*complete)(bool error));
 	static void beginReceiveBytes_(byte* buffer, short numBytes, void(*complete)(bool error));
 
+	static void endClientWrite_(bool error);
+
+	static void onSynchronousWriteComplete_(bool error);
 	static void noOpCallback_(bool error);
 	static void matchRomBytesReceived_(bool error);
 	static void notifyClientByteReceived_(bool error);
@@ -114,6 +120,11 @@ private:
 	static byte bufferBitPos_;
 	static void(*receiveBytesCallback_)(bool error);
 	static void(*sendBytesCallback_)(bool error);
+
+	static bool waitingSynchronousWriteToComplete_;
+	static bool synchronousWriteError_;
+
+	static bool sendingClientBytes_;
 
 	static bool singleBit_;
 	static bool singleBitRepeat_;

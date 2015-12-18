@@ -57,6 +57,11 @@ short OneWireSlave::bufferPos_;
 void(*OneWireSlave::receiveBytesCallback_)(bool error);
 void(*OneWireSlave::sendBytesCallback_)(bool error);
 
+bool OneWireSlave::waitingSynchronousWriteToComplete_;
+bool OneWireSlave::synchronousWriteError_;
+
+bool OneWireSlave::sendingClientBytes_;
+
 bool OneWireSlave::singleBit_;
 bool OneWireSlave::singleBitRepeat_;
 void(*OneWireSlave::singleBitSentCallback_)(bool error);
@@ -83,6 +88,7 @@ void OneWireSlave::begin(const byte* rom, byte pinNumber)
 	alarmedFlag_       = false;
 
 	clientReceiveBitCallback_ = 0;
+	sendingClientBytes_ = false;
 
 	// log("Enabling 1-wire library")
 
@@ -112,16 +118,56 @@ void OneWireSlave::end()
 	sei();
 }
 
-void OneWireSlave::write(const byte* bytes, short numBytes, void(*complete)(bool error))
+bool OneWireSlave::write(const byte* bytes, short numBytes)
+{
+	// TODO: put the arduino to sleep between interrupts to save power?
+	waitingSynchronousWriteToComplete_ = true;
+	beginWrite(bytes, numBytes, &OneWireSlave::onSynchronousWriteComplete_);
+	while (waitingSynchronousWriteToComplete_)
+		delay(1);
+	return synchronousWriteError_;
+}
+
+void OneWireSlave::onSynchronousWriteComplete_(bool error)
+{
+	synchronousWriteError_ = error;
+	waitingSynchronousWriteToComplete_ = false;
+}
+
+void OneWireSlave::beginWrite(const byte* bytes, short numBytes, void(*complete)(bool error))
 {
 	cli();
+	endClientWrite_(true);
+	sendingClientBytes_ = true;
 	beginWriteBytes_(bytes, numBytes, complete == 0 ? noOpCallback_ : complete);
 	sei();
+}
+
+void OneWireSlave::endClientWrite_(bool error)
+{
+	if (sendingClientBytes_)
+	{
+		sendingClientBytes_ = false;
+		if (sendBytesCallback_ != 0)
+		{
+			void(*callback)(bool error) = sendBytesCallback_;
+			sendBytesCallback_ = noOpCallback_;
+			callback(error);
+		}
+	}
+	else if (singleBitSentCallback_ != 0)
+	{
+		void(*callback)(bool) = singleBitSentCallback_;
+		singleBitSentCallback_ = 0;
+		callback(error);
+	}
 }
 
 void OneWireSlave::writeBit(bool value, bool repeat, void(*bitSent)(bool))
 {
 	cli();
+	endClientWrite_(true);
+
 	singleBit_ = value;
 	singleBitRepeat_ = repeat;
 	singleBitSentCallback_ = bitSent;
@@ -142,13 +188,15 @@ void OneWireSlave::onSingleBitSent_(bool error)
 
 	if (singleBitSentCallback_ != 0)
 	{
-		singleBitSentCallback_(error);
+		void(*callback)(bool) = singleBitSentCallback_;
+		singleBitSentCallback_ = 0;
+		callback(error);
 	}
 }
 
 void OneWireSlave::stopWrite()
 {
-	write(0, 0, 0);
+	beginWrite(0, 0, 0);
 }
 
 void OneWireSlave::alarmed(bool value)
@@ -200,6 +248,9 @@ void OneWireSlave::onLeaveInterrupt_()
 void OneWireSlave::error_(const char* message)
 {
 	beginWaitReset_();
+	endClientWrite_(true);
+	if (clientReceiveCallback_ != 0)
+		clientReceiveCallback_(RE_Error, 0);
 }
 
 void OneWireSlave::pullLow_()
@@ -354,6 +405,7 @@ void OneWireSlave::waitReset_()
 			lastReset_ = now;
 			pin_.detachInterrupt();
 			setTimerEvent_(PresenceWaitDuration - (micros() - now), &OneWireSlave::beginPresence_);
+			endClientWrite_(true);
 			if (clientReceiveCallback_ != 0)
 				clientReceiveCallback_(RE_Reset, 0);
 		}
@@ -565,6 +617,7 @@ void OneWireSlave::beginWriteBytes_(const byte* data, short numBytes, void(*comp
 	}
 	else
 	{
+		endClientWrite_(true);
 		beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
 	}
 }
@@ -588,6 +641,7 @@ void OneWireSlave::bitSent_(bool error)
 	if (bufferPos_ == bufferLength_)
 	{
 		beginWaitReset_();
+		endClientWrite_(false);
 		sendBytesCallback_(false);
 		return;
 	}
