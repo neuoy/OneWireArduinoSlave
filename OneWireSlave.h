@@ -26,6 +26,9 @@ public:
 	//! Sets (or replaces) a function to be called when a bit is received. The byte reception callback is called after that if the received bit was the last of a byte. The callback is executed from interrupts and should be as short as possible. Failure to return quickly can prevent the library from correctly reading the next bit.
 	void setReceiveBitCallback(void(*callback)(bool bit)) { clientReceiveBitCallback_ = callback; }
 
+	//! Sets (or replaces) a function to be called when the library has a message to log, if the functionality is enabled in OneWireSlave.cpp. This is for debugging purposes.
+	void setLogCallback(void(*callback)(const char* message)) { logCallback_ = callback; }
+
 	//! Writes the specified bytes synchronously. This function blocks until the write operation has finished. Do not call from an interrupt handler! Returns true in case of success, false if an error occured.
 	bool write(const byte* bytes, short numBytes);
 
@@ -121,8 +124,8 @@ private:
 	static void(*receiveBytesCallback_)(bool error);
 	static void(*sendBytesCallback_)(bool error);
 
-	static bool waitingSynchronousWriteToComplete_;
-	static bool synchronousWriteError_;
+	static volatile bool waitingSynchronousWriteToComplete_;
+	static volatile bool synchronousWriteError_;
 
 	static bool sendingClientBytes_;
 
@@ -133,6 +136,8 @@ private:
 
 	static void(*clientReceiveCallback_)(ReceiveEvent evt, byte data);
 	static void(*clientReceiveBitCallback_)(bool bit);
+
+	static void(*logCallback_)(const char* message);
 };
 
 extern OneWireSlave OWSlave;

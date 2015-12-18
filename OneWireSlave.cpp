@@ -57,14 +57,16 @@ short OneWireSlave::bufferPos_;
 void(*OneWireSlave::receiveBytesCallback_)(bool error);
 void(*OneWireSlave::sendBytesCallback_)(bool error);
 
-bool OneWireSlave::waitingSynchronousWriteToComplete_;
-bool OneWireSlave::synchronousWriteError_;
+volatile bool OneWireSlave::waitingSynchronousWriteToComplete_;
+volatile bool OneWireSlave::synchronousWriteError_;
 
 bool OneWireSlave::sendingClientBytes_;
 
 bool OneWireSlave::singleBit_;
 bool OneWireSlave::singleBitRepeat_;
 void(*OneWireSlave::singleBitSentCallback_)(bool error);
+
+void(*OneWireSlave::logCallback_)(const char* message);
 
 
 ISR(TIMER1_COMPA_vect) // timer1 interrupt
@@ -125,7 +127,7 @@ bool OneWireSlave::write(const byte* bytes, short numBytes)
 	beginWrite(bytes, numBytes, &OneWireSlave::onSynchronousWriteComplete_);
 	while (waitingSynchronousWriteToComplete_)
 		delay(1);
-	return synchronousWriteError_;
+	return !synchronousWriteError_;
 }
 
 void OneWireSlave::onSynchronousWriteComplete_(bool error)
@@ -247,6 +249,8 @@ void OneWireSlave::onLeaveInterrupt_()
 
 void OneWireSlave::error_(const char* message)
 {
+	if (logCallback_ != 0)
+		logCallback_(message);
 	beginWaitReset_();
 	endClientWrite_(true);
 	if (clientReceiveCallback_ != 0)
