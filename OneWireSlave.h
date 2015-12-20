@@ -29,14 +29,17 @@ public:
 	//! Sets (or replaces) a function to be called when the library has a message to log, if the functionality is enabled in OneWireSlave.cpp. This is for debugging purposes.
 	void setLogCallback(void(*callback)(const char* message)) { logCallback_ = callback; }
 
-	//! Writes the specified bytes synchronously. This function blocks until the write operation has finished. Do not call from an interrupt handler! Returns true in case of success, false if an error occured.
+	//! Writes the specified bytes synchronously. This function blocks until the write operation has finished. Do not call from an interrupt handler! Returns true in case of success, false if an error occurs.
 	bool write(const byte* bytes, short numBytes);
 
 	//! Starts sending the specified bytes. They will be sent in the background, and the buffer must remain valid and unchanged until the write operation has finished or is cancelled. The optional callback is used to notify when the bytes are sent, or if an error occured. Callbacks are executed from interrupts and should be as short as possible. If bytes is null or numBytes is 0, nothing is sent, which is equivalent to calling stopWrite. In any case, calling the write function will cancel the previous write operation if it didn't complete yet.
 	void beginWrite(const byte* bytes, short numBytes, void(*complete)(bool error));
 
+	//! Writes a single bit synchronously. This function blocks until the bit is sent. Do not call from an interrupt handler! Returns true in case of success, false if an error occurs.
+	bool writeBit(bool value);
+
 	//! Sets a bit that will be sent next time the master asks for one. Optionnaly, the repeat parameter can be set to true to continue sending the same bit each time. In both cases, the send operation can be canceled by calling stopWrite.
-	void writeBit(bool value, bool repeat = false, void(*bitSent)(bool error) = 0);
+	void beginWriteBit(bool value, bool repeat = false, void(*bitSent)(bool error) = 0);
 
 	//! Cancels any pending write operation, started by writeBit or write. If this function is called before the master asked for a bit, then nothing is sent to the master.
 	void stopWrite();
@@ -77,7 +80,7 @@ private:
 	static void beginWriteBytes_(const byte* data, short numBytes, void(*complete)(bool error));
 	static void beginReceiveBytes_(byte* buffer, short numBytes, void(*complete)(bool error));
 
-	static void endClientWrite_(bool error);
+	static void endWrite_(bool error, bool resetInterrupts = true);
 
 	static void onSynchronousWriteComplete_(bool error);
 	static void noOpCallback_(bool error);

@@ -139,14 +139,17 @@ void OneWireSlave::onSynchronousWriteComplete_(bool error)
 void OneWireSlave::beginWrite(const byte* bytes, short numBytes, void(*complete)(bool error))
 {
 	cli();
-	endClientWrite_(true);
+	endWrite_(true);
 	sendingClientBytes_ = true;
 	beginWriteBytes_(bytes, numBytes, complete == 0 ? noOpCallback_ : complete);
 	sei();
 }
 
-void OneWireSlave::endClientWrite_(bool error)
+void OneWireSlave::endWrite_(bool error, bool resetInterrupts)
 {
+	if(resetInterrupts)
+		beginWaitReset_();
+
 	if (sendingClientBytes_)
 	{
 		sendingClientBytes_ = false;
@@ -165,10 +168,20 @@ void OneWireSlave::endClientWrite_(bool error)
 	}
 }
 
-void OneWireSlave::writeBit(bool value, bool repeat, void(*bitSent)(bool))
+bool OneWireSlave::writeBit(bool value)
+{
+	// TODO: put the arduino to sleep between interrupts to save power?
+	waitingSynchronousWriteToComplete_ = true;
+	beginWriteBit(value, false, &OneWireSlave::onSynchronousWriteComplete_);
+	while (waitingSynchronousWriteToComplete_)
+		delay(1);
+	return !synchronousWriteError_;
+}
+
+void OneWireSlave::beginWriteBit(bool value, bool repeat, void(*bitSent)(bool))
 {
 	cli();
-	endClientWrite_(true);
+	endWrite_(true);
 
 	singleBit_ = value;
 	singleBitRepeat_ = repeat;
@@ -251,8 +264,7 @@ void OneWireSlave::error_(const char* message)
 {
 	if (logCallback_ != 0)
 		logCallback_(message);
-	beginWaitReset_();
-	endClientWrite_(true);
+	endWrite_(true);
 	if (clientReceiveCallback_ != 0)
 		clientReceiveCallback_(RE_Error, 0);
 }
@@ -409,7 +421,7 @@ void OneWireSlave::waitReset_()
 			lastReset_ = now;
 			pin_.detachInterrupt();
 			setTimerEvent_(PresenceWaitDuration - (micros() - now), &OneWireSlave::beginPresence_);
-			endClientWrite_(true);
+			endWrite_(true, false);
 			if (clientReceiveCallback_ != 0)
 				clientReceiveCallback_(RE_Reset, 0);
 		}
@@ -621,7 +633,7 @@ void OneWireSlave::beginWriteBytes_(const byte* data, short numBytes, void(*comp
 	}
 	else
 	{
-		endClientWrite_(true);
+		endWrite_(true);
 		beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
 	}
 }
@@ -644,8 +656,7 @@ void OneWireSlave::bitSent_(bool error)
 
 	if (bufferPos_ == bufferLength_)
 	{
-		beginWaitReset_();
-		endClientWrite_(false);
+		endWrite_(false);
 		sendBytesCallback_(false);
 		return;
 	}
