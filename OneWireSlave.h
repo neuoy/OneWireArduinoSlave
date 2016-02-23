@@ -53,6 +53,7 @@ private:
 	static void beginSendBit_(bool bit, void(*completeCallback)(bool error));
 
 	static void beginResetDetection_();
+	static void beginResetDetectionSendZero_();
 	static void cancelResetDetection_();
 
 	static void beginWaitReset_();
