@@ -209,6 +209,12 @@ void OneWireSlave::beginResetDetection_()
 	resetStart_ = micros() - 50;
 }
 
+void OneWireSlave::beginResetDetectionSendZero_()
+{
+	setTimerEvent_(ResetMinDuration - SendBitDuration - 50, &OneWireSlave::resetCheck_);
+	resetStart_ = micros() - SendBitDuration - 50;
+}
+
 void OneWireSlave::cancelResetDetection_()
 {
 	disableTimer_();
@@ -298,6 +304,7 @@ void OneWireSlave::endSendBitZero_()
 	onEnterInterrupt_();
 
 	releaseBus_();
+	beginResetDetectionSendZero_();
 	bitSentCallback_(false);
 
 	onLeaveInterrupt_();
