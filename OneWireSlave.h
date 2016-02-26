@@ -102,6 +102,7 @@ private:
 	static byte searchRomBytePos_;
 	static byte searchRomBitPos_;
 	static bool searchRomInverse_;
+	static bool resumeCommandFlag_;
 
 	static const byte* sendBuffer_;
 	static byte* recvBuffer_;
