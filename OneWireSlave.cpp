@@ -47,6 +47,7 @@ byte OneWireSlave::searchRomBytePos_;
 byte OneWireSlave::searchRomBitPos_;
 bool OneWireSlave::searchRomInverse_;
 bool OneWireSlave::resumeCommandFlag_;
+bool OneWireSlave::alarmedFlag_;
 
 const byte* OneWireSlave::sendBuffer_;
 byte* OneWireSlave::recvBuffer_;
@@ -79,6 +80,7 @@ void OneWireSlave::begin(const byte* rom, byte pinNumber)
 	rom_[7] = crc8(rom_, 7);
 
 	resumeCommandFlag_ = false;
+	alarmedFlag_       = false;
 
 	clientReceiveBitCallback_ = 0;
 
@@ -147,6 +149,11 @@ void OneWireSlave::onSingleBitSent_(bool error)
 void OneWireSlave::stopWrite()
 {
 	write(0, 0, 0);
+}
+
+void OneWireSlave::alarmed(bool value)
+{
+	alarmedFlag_ = value;
 }
 
 byte OneWireSlave::crc8(const byte* data, short numBytes)
@@ -410,12 +417,26 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 			switch (receivingByte_)
 			{
 			case 0xF0: // SEARCH ROM
+				resumeCommandFlag_ = false;
 				beginSearchRom_();
 				return;
+			case 0xEC: // CONDITIONAL SEARCH ROM
+				resumeCommandFlag_ = false;
+				if (alarmedFlag_)
+				{
+					beginSearchRom_();
+				}
+				else
+				{
+					beginWaitReset_();
+				}
+				return;
 			case 0x33: // READ ROM
+				resumeCommandFlag_ = false;
 				beginWriteBytes_(rom_, 8, &OneWireSlave::noOpCallback_);
 				return;
 			case 0x55: // MATCH ROM
+				resumeCommandFlag_ = false;
 				beginReceiveBytes_(scratchpad_, 8, &OneWireSlave::matchRomBytesReceived_);
 				return;
 			case 0xCC: // SKIP ROM

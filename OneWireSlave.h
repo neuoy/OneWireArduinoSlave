@@ -35,6 +35,8 @@ public:
 	//! Cancels any pending write operation, started by writeBit or write. If this function is called before the master asked for a bit, then nothing is sent to the master.
 	void stopWrite();
 
+	void alarmed(bool value);
+
 	static byte crc8(const byte* data, short numBytes);
 
 private:
@@ -103,6 +105,7 @@ private:
 	static byte searchRomBitPos_;
 	static bool searchRomInverse_;
 	static bool resumeCommandFlag_;
+	static bool alarmedFlag_;
 
 	static const byte* sendBuffer_;
 	static byte* recvBuffer_;
