@@ -91,7 +91,6 @@ private:
 	static byte rom_[8];
 	static byte scratchpad_[8];
 	static Pin pin_;
-	static byte tccr1bEnable_;
 
 	static unsigned long resetStart_;
 	static unsigned long lastReset_;
