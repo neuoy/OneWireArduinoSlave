@@ -1,0 +1,34 @@
+#######################################
+# Syntax Coloring Map For OneWireSlave
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+ReceiveEvent  KEYWORD1
+OneWireSlave  KEYWORD1
+Pin KEYWORD1
+OWSlave KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin KEYWORD2
+end KEYWORD2
+setReceiveCallback  KEYWORD2
+setReceiveBitCallback KEYWORD2
+write KEYWORD2
+writeBit  KEYWORD2
+stopWrite KEYWORD2
+alarmed KEYWORD2
+crc8  KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+RE_Reset  LITERAL1
+RE_Byte LITERAL1
+RE_Error  LITERAL1
