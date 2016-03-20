@@ -8,6 +8,6 @@
     <ClInclude Include="OneWireSlave.h" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="OneWireIO_Demo.ino" />
+    <CustomBuild Include="OneWireIO.ino" />
   </ItemGroup>
 </Project>
