@@ -46,6 +46,8 @@ byte OneWireSlave::receivingByte_;
 byte OneWireSlave::searchRomBytePos_;
 byte OneWireSlave::searchRomBitPos_;
 bool OneWireSlave::searchRomInverse_;
+bool OneWireSlave::resumeCommandFlag_;
+bool OneWireSlave::alarmedFlag_;
 
 const byte* OneWireSlave::sendBuffer_;
 byte* OneWireSlave::recvBuffer_;
@@ -76,6 +78,9 @@ void OneWireSlave::begin(const byte* rom, byte pinNumber)
 
 	memcpy(rom_, rom, 7);
 	rom_[7] = crc8(rom_, 7);
+
+	resumeCommandFlag_ = false;
+	alarmedFlag_       = false;
 
 	clientReceiveBitCallback_ = 0;
 
@@ -144,6 +149,11 @@ void OneWireSlave::onSingleBitSent_(bool error)
 void OneWireSlave::stopWrite()
 {
 	write(0, 0, 0);
+}
+
+void OneWireSlave::alarmed(bool value)
+{
+	alarmedFlag_ = value;
 }
 
 byte OneWireSlave::crc8(const byte* data, short numBytes)
@@ -407,18 +417,41 @@ void OneWireSlave::onBitReceived_(bool bit, bool error)
 			switch (receivingByte_)
 			{
 			case 0xF0: // SEARCH ROM
+				resumeCommandFlag_ = false;
 				beginSearchRom_();
 				return;
+			case 0xEC: // CONDITIONAL SEARCH ROM
+				resumeCommandFlag_ = false;
+				if (alarmedFlag_)
+				{
+					beginSearchRom_();
+				}
+				else
+				{
+					beginWaitReset_();
+				}
+				return;
 			case 0x33: // READ ROM
+				resumeCommandFlag_ = false;
 				beginWriteBytes_(rom_, 8, &OneWireSlave::noOpCallback_);
 				return;
 			case 0x55: // MATCH ROM
+				resumeCommandFlag_ = false;
 				beginReceiveBytes_(scratchpad_, 8, &OneWireSlave::matchRomBytesReceived_);
 				return;
 			case 0xCC: // SKIP ROM
-				// emulate a match rom operation
-				memcpy(scratchpad_, rom_, 8);
-				matchRomBytesReceived_(false);
+				resumeCommandFlag_ = false;
+				beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
+				return;
+			case 0xA5: // RESUME
+				if (resumeCommandFlag_)
+				{
+					beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
+				}
+				else
+				{
+					beginWaitReset_();
+				}
 				return;
 			default:
 				ERROR("Unknown command");
@@ -582,6 +615,7 @@ void OneWireSlave::matchRomBytesReceived_(bool error)
 {
 	if (error)
 	{
+		resumeCommandFlag_ = false;
 		ERROR("error receiving match rom bytes");
 		return;
 	}
@@ -589,13 +623,13 @@ void OneWireSlave::matchRomBytesReceived_(bool error)
 	if (memcmp(rom_, scratchpad_, 8) == 0)
 	{
 		// log("ROM matched");
-
+		resumeCommandFlag_ = true;
 		beginReceiveBytes_(scratchpad_, 1, &OneWireSlave::notifyClientByteReceived_);
 	}
 	else
 	{
 		// log("ROM not matched");
-
+		resumeCommandFlag_ = false;
 		beginWaitReset_();
 	}
 }
