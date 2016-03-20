@@ -72,7 +72,7 @@ void loop()
 		cli();
 		memcpy((void*)scratchpad, data, 9);
 		state = DS_TemperatureConverted;
-		OWSlave.writeBit(1, true); // now that conversion is finished, start sending ones until reset
+		OWSlave.beginWriteBit(1, true); // now that conversion is finished, start sending ones until reset
 		sei();
 	}
 }
@@ -90,12 +90,12 @@ void owReceive(OneWireSlave::ReceiveEvent evt, byte data)
 			case DS18B20_START_CONVERSION:
 				state = DS_ConvertingTemperature;
 				conversionStartTime = millis();
-				OWSlave.writeBit(0, true); // send zeros as long as the conversion is not finished
+				OWSlave.beginWriteBit(0, true); // send zeros as long as the conversion is not finished
 				break;
 
 			case DS18B20_READ_SCRATCHPAD:
 				state = DS_WaitingReset;
-				OWSlave.write((const byte*)scratchpad, 9, 0);
+				OWSlave.beginWrite((const byte*)scratchpad, 9, 0);
 				break;
 
 			case DS18B20_WRITE_SCRATCHPAD:
