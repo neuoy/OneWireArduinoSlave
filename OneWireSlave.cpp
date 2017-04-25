@@ -390,6 +390,7 @@ void OneWireSlave::endSendBitZero_()
 void OneWireSlave::beginWaitReset_()
 {
 	disableTimer_();
+	pin_.inputMode();
 	pin_.attachInterrupt(&OneWireSlave::waitReset_, CHANGE);
 	resetStart_ = (unsigned int)-1;
 }
