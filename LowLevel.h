@@ -3,6 +3,16 @@
 
 #include <inttypes.h>
 
+#ifdef VS_INTELLISENSE
+static inline void UserTimer_Init(void)
+{
+}
+static inline void UserTimer_Run(short skipTicks)
+{
+}
+#define UserTimer_Stop() {}
+#endif
+
 #if ARDUINO >= 100
 #include "Arduino.h"       // for delayMicroseconds, digitalPinToBitMask, etc
 #else

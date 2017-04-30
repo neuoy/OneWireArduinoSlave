@@ -14,8 +14,8 @@ namespace
 	const unsigned long ResetMinDuration = 480;
 	const unsigned long ResetMaxDuration = 900;
 
-	const unsigned long PresenceWaitDuration = 30;
-	const unsigned long PresenceDuration = 300;
+	const unsigned long PresenceWaitDuration = 15;
+	const unsigned long PresenceDuration = 200;
 
 	const unsigned long ReadBitSamplingTime = 25;
 
@@ -415,7 +415,8 @@ void OneWireSlave::waitReset_()
 
 			lastReset_ = now;
 			pin_.detachInterrupt();
-			setTimerEvent_(PresenceWaitDuration - (micros() - now), &OneWireSlave::beginPresence_);
+			unsigned long alreadyElapsedTime = micros() - now;
+			setTimerEvent_(alreadyElapsedTime < PresenceWaitDuration ? PresenceWaitDuration - alreadyElapsedTime : 0, &OneWireSlave::beginPresence_);
 			endWrite_(true, false);
 			if (clientReceiveCallback_ != 0)
 				clientReceiveCallback_(RE_Reset, 0);

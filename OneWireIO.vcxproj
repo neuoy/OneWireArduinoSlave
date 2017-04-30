@@ -46,7 +46,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>D:\Outils\Arduino\hardware\arduino\avr\cores\arduino;D:\Outils\Arduino\hardware\tools\avr\avr\include;C:\Program Files %28x86%29\Arduino\hardware\arduino\avr\cores\arduino;C:\Program Files %28x86%29\Arduino\hardware\tools\avr\avr\include</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);ARDUINO=160;__AVR__;UBRRH;__AVR_ATmega328__</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);ARDUINO=160;__AVR__;UBRRH;__AVR_ATmega328__;VS_INTELLISENSE</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
