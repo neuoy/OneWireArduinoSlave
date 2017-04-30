@@ -31,7 +31,6 @@ OneWireSlave OWSlave;
 byte OneWireSlave::rom_[8];
 byte OneWireSlave::scratchpad_[8];
 Pin OneWireSlave::pin_;
-byte OneWireSlave::tccr1bEnable_;
 
 unsigned long OneWireSlave::resetStart_;
 unsigned long OneWireSlave::lastReset_;
@@ -69,9 +68,9 @@ void(*OneWireSlave::singleBitSentCallback_)(bool error);
 void(*OneWireSlave::logCallback_)(const char* message);
 
 
-ISR(TIMER1_COMPA_vect) // timer1 interrupt
+ISR(USERTIMER_COMPA_vect) // timer1 interrupt
 {
-	TCCR1B = 0; // disable clock
+	UserTimer_Stop(); // disable clock
 	void(*event)() = timerEvent;
 	timerEvent = 0;
 	event();
@@ -99,10 +98,7 @@ void OneWireSlave::begin(const byte* rom, byte pinNumber)
 	pin_.writeLow(); // make sure the internal pull-up resistor is disabled
 
 	// prepare hardware timer
-	TCCR1A = 0;
-	TCCR1B = 0;
-	TIMSK1 |= (1 << OCIE1A); // enable timer compare interrupt
-	tccr1bEnable_ = (1 << WGM12) | (1 << CS11) | (1 << CS10); // turn on CTC mode with 64 prescaler
+	UserTimer_Init();
 
 	// start 1-wire activity
 	beginWaitReset_();
@@ -241,15 +237,13 @@ void OneWireSlave::setTimerEvent_(short delayMicroSeconds, void(*handler)())
 
 	short skipTicks = (delayMicroSeconds - 3) / 4; // round the micro seconds delay to a number of ticks to skip (4us per tick, so 4us must skip 0 tick, 8us must skip 1 tick, etc.)
 	if (skipTicks < 1) skipTicks = 1;
-	TCNT1 = 0;
-	OCR1A = skipTicks;
 	timerEvent = handler;
-	TCCR1B = tccr1bEnable_;
+	UserTimer_Run(skipTicks);
 }
 
 void OneWireSlave::disableTimer_()
 {
-	TCCR1B = 0;
+	UserTimer_Stop();
 }
 
 void OneWireSlave::onEnterInterrupt_()
