@@ -1,4 +1,5 @@
 #include "OneWireSlave.h"
+#include "TimerOne.h"
 
 // uncomment this line to enable sending messages along with errors (but takes more program memory)
 //#define ERROR_MESSAGES
@@ -68,9 +69,9 @@ void(*OneWireSlave::singleBitSentCallback_)(bool error);
 void(*OneWireSlave::logCallback_)(const char* message);
 
 
-ISR(USERTIMER_COMPA_vect) // timer1 interrupt
+void timer1Interrupt()
 {
-	UserTimer_Stop(); // disable clock
+	Timer1.detachInterrupt();
 	void(*event)() = timerEvent;
 	timerEvent = 0;
 	event();
@@ -98,7 +99,8 @@ void OneWireSlave::begin(const byte* rom, byte pinNumber)
 	pin_.writeLow(); // make sure the internal pull-up resistor is disabled
 
 	// prepare hardware timer
-	UserTimer_Init();
+	Timer1.initialize(4);
+	Timer1.stop();
 
 	// start 1-wire activity
 	beginWaitReset_();
@@ -234,16 +236,19 @@ byte OneWireSlave::crc8(const byte* data, short numBytes)
 void OneWireSlave::setTimerEvent_(short delayMicroSeconds, void(*handler)())
 {
 	delayMicroSeconds -= 10; // remove overhead (tuned on Arduino Uno)
+	if (delayMicroSeconds < 1)
+		delayMicroSeconds = 1;
 
-	short skipTicks = (delayMicroSeconds - 3) / 4; // round the micro seconds delay to a number of ticks to skip (4us per tick, so 4us must skip 0 tick, 8us must skip 1 tick, etc.)
-	if (skipTicks < 1) skipTicks = 1;
 	timerEvent = handler;
-	UserTimer_Run(skipTicks);
+	Timer1.attachInterrupt(timer1Interrupt);
+	Timer1.setPeriod(delayMicroSeconds);
+	Timer1.start();
 }
 
 void OneWireSlave::disableTimer_()
 {
-	UserTimer_Stop();
+	Timer1.stop();
+	Timer1.detachInterrupt();
 }
 
 void OneWireSlave::onEnterInterrupt_()

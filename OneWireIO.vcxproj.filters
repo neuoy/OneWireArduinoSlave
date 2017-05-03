@@ -2,10 +2,13 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="OneWireSlave.cpp" />
+    <ClCompile Include="TimerOne.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LowLevel.h" />
     <ClInclude Include="OneWireSlave.h" />
+    <ClInclude Include="TimerOne.h" />
+    <ClInclude Include="config\known_16bit_timers.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="OneWireIO.ino" />

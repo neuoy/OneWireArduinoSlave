@@ -27,39 +27,8 @@
 
 #if defined (__AVR_ATtiny85__)
 #define CLEARINTERRUPT GIFR |= (1 << INTF0)
-#include "UserTimer.h" //ATtiny-support based on TinyCore1 Arduino-core for ATtiny at http://github.com/Coding-Badly/TinyCore1.git
-__attribute__((always_inline)) static inline void UserTimer_Init( void )
-{
-	UserTimer_SetToPowerup();
-	UserTimer_SetWaveformGenerationMode(UserTimer_(CTC_OCR));
-}
-__attribute__((always_inline)) static inline void UserTimer_Run(short skipTicks)
-{
-	UserTimer_SetCount(0);
-	UserTimer_SetOutputCompareMatchAndClear(skipTicks);
-	UserTimer_ClockSelect(UserTimer_(Prescale_Value_64));
-}
-#define UserTimer_Stop() UserTimer_ClockSelect(UserTimer_(Stopped))
-
 #elif defined (__AVR_ATmega328P__)
 #define CLEARINTERRUPT EIFR |= (1 << INTF0)
-#define USERTIMER_COMPA_vect TIMER1_COMPA_vect
-
-__attribute__((always_inline)) static inline void UserTimer_Init( void )
-{
-	TCCR1A = 0;
-	TCCR1B = 0;
-	// enable timer compare interrupt
-	TIMSK1 |= (1 << OCIE1A);
-}
-__attribute__((always_inline)) static inline void UserTimer_Run(short skipTicks)
-{
-	TCNT1 = 0;
-	OCR1A = skipTicks;
-	// turn on CTC mode with 64 prescaler
-	TCCR1B = (1 << WGM12) | (1 << CS11) | (1 << CS10);
-}
-#define UserTimer_Stop() TCCR1B = 0
 #endif
 
 #elif defined(__MK20DX128__) || defined(__MK20DX256__)
