@@ -4,13 +4,7 @@
 #include <inttypes.h>
 
 #ifdef VS_INTELLISENSE
-static inline void UserTimer_Init(void)
-{
-}
-static inline void UserTimer_Run(short skipTicks)
-{
-}
-#define UserTimer_Stop() {}
+#define __attribute__() 
 #endif
 
 #if ARDUINO >= 100
@@ -157,7 +151,7 @@ public:
 
 	inline void attachInterrupt(void (*handler)(), int mode)
 	{
-		CLEARINTERRUPT;  // clear any pending interrupt (we want to call the handler only for interrupts happending after it is attached)
+		CLEARINTERRUPT;  // clear any pending interrupt (we want to call the handler only for interrupts happening after it is attached)
 		::attachInterrupt(interruptNumber_, handler, mode);
 	}
 	inline void detachInterrupt() { ::detachInterrupt(interruptNumber_); }
