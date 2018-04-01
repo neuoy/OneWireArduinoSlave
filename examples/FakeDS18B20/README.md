@@ -13,4 +13,4 @@ You will see 28.000000000002 probe that always return 42 as temperature :
     42
 Conversion timing is emulated as well.
 
-If you don't use an Arduino Uno, you may need to adjust which pin you connect as the data line (it needs to have hardware interrupts), and make the corresponding change in the example source code. A few microcontrollers are compatible with the library, check the full list in [the documentation](../../documentation.md).
+If you don't use an Arduino Uno, you may need to adjust which pin you connect as the data line (it needs to have hardware interrupts), and make the corresponding change in the example source code. A few microcontrollers are compatible with the library, check the full list in [the documentation](../../extras/documentation.md).

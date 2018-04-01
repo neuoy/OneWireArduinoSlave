@@ -44,6 +44,7 @@ public:
 	//! Cancels any pending write operation, started by writeBit or write. If this function is called before the master asked for a bit, then nothing is sent to the master.
 	void stopWrite();
 
+	//! Sets the alarmed state, that is used when the master makes a conditional search of alarmed devices.
 	void alarmed(bool value);
 
 	static byte crc8(const byte* data, short numBytes);
