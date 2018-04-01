@@ -4,7 +4,10 @@
 #include <inttypes.h>
 
 #ifdef VS_INTELLISENSE
-#define __attribute__() 
+#define __attribute__(...) 
+#define digitalPinToPort(pin) 0
+#define digitalPinToBitMask(pin) 0
+#define portInputRegister(arg1) 0
 #endif
 
 #if ARDUINO >= 100
