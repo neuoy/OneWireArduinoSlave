@@ -2,7 +2,7 @@
 #define _OneWireSlave_h_
 
 #include "Arduino.h"
-#include "LowLevel.h"
+#include "utility/LowLevel.h"
 
 class OneWireSlave
 {
